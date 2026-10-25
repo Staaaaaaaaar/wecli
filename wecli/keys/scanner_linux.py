@@ -114,10 +114,9 @@ def _check_permissions():
                     break
     except (OSError, ValueError):
         pass
-    raise RuntimeError(
+    raise PermissionError(
         "需要 root 权限或 CAP_SYS_PTRACE 才能读取进程内存\n"
-        "请使用: sudo wecli init\n"
-        "或授予 capability: sudo setcap cap_sys_ptrace=ep $(which python3)"
+        "请运行 wecli init，由初始化流程请求 sudo 授权"
     )
 
 

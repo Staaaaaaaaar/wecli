@@ -24,7 +24,7 @@ def init(db_dir, force):
         return
 
     # 2. 创建状态目录
-    os.makedirs(STATE_DIR, exist_ok=True)
+    os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)
 
     # 3. 确定 db_dir
     if db_dir is None:
@@ -45,12 +45,10 @@ def init(db_dir, force):
     # 4. 提取密钥
     click.echo("\n开始提取密钥...")
     try:
-        from ..keys import extract_keys
-        key_map = extract_keys(db_dir, KEYS_FILE)
+        from ..keys.elevation import extract_keys_for_init
+        key_map = extract_keys_for_init(db_dir, KEYS_FILE)
     except RuntimeError as e:
         click.echo(f"\n[!] 密钥提取失败: {e}", err=True)
-        if "sudo" not in str(e).lower():
-            click.echo("提示: Linux 初始化通常需要 sudo 权限", err=True)
         sys.exit(1)
     except Exception as e:
         click.echo(f"\n[!] 密钥提取出错: {e}", err=True)

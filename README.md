@@ -26,17 +26,15 @@ If using Conda, activate your existing environment instead of creating `.venv`. 
 Start WeChat and log in. With your Python environment activated on Linux:
 
 ```bash
-sudo env HOME="$HOME" "$(python -c 'import sys; print(sys.executable)')" -m wecli.main init
-sudo chown -R "$(id -u):$(id -g)" "$HOME/.wecli"
+wecli init
 ```
 
-The sudo password prompt does not echo characters. Enter your system login password and press Enter. Using the active environment's absolute Python path avoids command lookup issues with Conda and virtual environments.
+The command automatically requests sudo authorization when needed to read process memory. The password prompt does not echo characters; enter your system login password and press Enter. Scanning uses the current Python environment, while your normal user saves configuration and keys. No additional `chown` command is needed.
 
 Initialization detects the data directory and extracts keys. Select the currently logged-in account when multiple accounts are found. To specify a data directory:
 
 ```bash
-sudo env HOME="$HOME" "$(python -c 'import sys; print(sys.executable)')" -m wecli.main init --db-dir /path/to/db_storage
-sudo chown -R "$(id -u):$(id -g)" "$HOME/.wecli"
+wecli init --db-dir /path/to/db_storage
 ```
 
 ### 2. Query data
@@ -181,11 +179,17 @@ Alternatively, set `WECLI_CONFIG`. The internal Python module is named `wecli`.
 
 ## Linux notes
 
-Initialization reads `/proc/<pid>/mem` and normally requires sudo. Keep the native Linux WeChat client running and logged in. Run installation and routine queries as your normal user.
+Initialization reads `/proc/<pid>/mem` and normally requires sudo. Keep the native Linux WeChat client running and logged in. Run installation, initialization, and routine queries as your normal user; initialization automatically requests sudo authorization only for key scanning.
 
 Data directories are detected under `~/Documents/xwechat_files/*/db_storage` and `~/.local/share/weixin/data/db_storage`. Use `--db-dir` when your data is stored elsewhere.
 
-If initialization reports no WeChat process, confirm that the client is running. If several accounts are detected, select the active account. After initialization, restore ownership of `~/.wecli/` using the command above so normal queries can update their state.
+If initialization reports no WeChat process, confirm that the client is running. If several accounts are detected, select the active account. An existing initialization returns immediately; use `wecli init --force` to scan again.
+
+If an older sudo initialization left root-owned files, repair ownership once:
+
+```bash
+sudo chown -R "$(id -u):$(id -g)" "$HOME/.wecli"
+```
 
 ## Development and releases
 

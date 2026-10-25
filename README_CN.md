@@ -26,17 +26,15 @@ wecli --help
 先启动微信并登录。在 Linux 的已激活 Python 环境中执行：
 
 ```bash
-sudo env HOME="$HOME" "$(python -c 'import sys; print(sys.executable)')" -m wecli.main init
-sudo chown -R "$(id -u):$(id -g)" "$HOME/.wecli"
+wecli init
 ```
 
-sudo 密码输入时不会显示字符，输入系统登录密码后回车即可。使用当前环境的 Python 绝对路径可以避免 sudo 找不到 Conda 或虚拟环境中的命令。
+需要读取进程内存时，程序会自动请求 sudo 授权。密码输入时不会显示字符，输入系统登录密码后回车即可。扫描使用当前 Python 环境，配置和密钥由普通用户保存，无需额外执行 `chown`。
 
 初始化会检测微信数据目录并提取密钥。检测到多个账号时，选择当前登录的账号。也可以指定数据目录：
 
 ```bash
-sudo env HOME="$HOME" "$(python -c 'import sys; print(sys.executable)')" -m wecli.main init --db-dir /path/to/db_storage
-sudo chown -R "$(id -u):$(id -g)" "$HOME/.wecli"
+wecli init --db-dir /path/to/db_storage
 ```
 
 ### 2. 查询数据
@@ -181,11 +179,17 @@ wecli --config /path/to/config.json sessions
 
 ## Linux 使用说明
 
-初始化通过 `/proc/<pid>/mem` 读取微信进程内存，通常需要 sudo。请保持 Linux 原生微信客户端运行并登录。安装和日常查询使用普通用户执行。
+初始化通过 `/proc/<pid>/mem` 读取微信进程内存，通常需要 sudo。请保持 Linux 原生微信客户端运行并登录。安装、初始化和日常查询均以普通用户执行；初始化仅为密钥扫描自动请求 sudo 授权。
 
 默认检测 `~/Documents/xwechat_files/*/db_storage` 和 `~/.local/share/weixin/data/db_storage`。数据保存在其他位置时，使用 `--db-dir` 指定。
 
-如果提示未检测到微信进程，先确认客户端正在运行。检测到多个账号时，选择当前登录的账号。初始化后执行上方的目录所有权恢复命令，确保普通用户可以更新 `~/.wecli/` 中的状态。
+如果提示未检测到微信进程，先确认客户端正在运行。检测到多个账号时，选择当前登录的账号。已完成初始化时会直接返回，使用 `wecli init --force` 重新扫描。
+
+如果曾使用旧版 sudo 初始化且尚未恢复目录所有权，需要执行一次修复：
+
+```bash
+sudo chown -R "$(id -u):$(id -g)" "$HOME/.wecli"
+```
 
 ## 开发与发布
 

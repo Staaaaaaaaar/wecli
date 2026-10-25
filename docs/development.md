@@ -27,6 +27,7 @@ wecli --version
 
 ```bash
 python -m compileall -q wecli
+python -m unittest discover -s tests -v
 wecli --help
 wecli --version
 wecli init --help
@@ -35,7 +36,7 @@ git diff --check
 
 除 `init` 外，当前子命令会在显示帮助前加载配置，未初始化时可能提示缺少数据目录或密钥文件。
 
-真实数据验证请按 [中文使用说明](../README_CN.md) 初始化，然后以普通用户运行会话查询、历史查询和导出。初始化需要读取进程内存，通常使用 sudo；必须保留普通用户的 HOME 和当前环境的 Python 路径，并在完成后恢复 `~/.wecli/` 的目录所有权。具体命令见 README。
+真实数据验证请按 [中文使用说明](../README_CN.md) 以普通用户运行 `wecli init`，然后运行会话查询、历史查询和导出。Linux 初始化只为密钥扫描启动 sudo 子进程，沿用当前环境的 Python 绝对路径；子进程经管道返回密钥，父进程保存配置与密钥，无需恢复目录所有权。自动化测试覆盖授权调用、失败保护和子进程输出协议，不代替真实 sudo 与微信数据验证。
 
 配置和密钥保存在 `~/.wecli/`，可用 `WECLI_CONFIG` 或全局 `--config` 参数指定查询配置。密钥、数据库和聊天导出内容不应提交到仓库。
 
