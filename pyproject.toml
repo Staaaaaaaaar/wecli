@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wecli"
+version = "0.1.0"
+description = "A command-line tool for local WeChat data"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1,<9",
+    "pycryptodome>=3.19,<4",
+    "zstandard>=0.22,<1",
+]
+
+[project.scripts]
+wecli = "wecli.main:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wecli*"]
+
+[tool.setuptools.package-data]
+wecli = ["bin/*"]
+
+[project.urls]
+Repository = "https://github.com/Staaaaaaaaar/wecli"
