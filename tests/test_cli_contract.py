@@ -7,6 +7,7 @@ import re
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -220,7 +221,7 @@ class CliContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             path = root / "session.db"
-            with sqlite3.connect(path) as conn:
+            with closing(sqlite3.connect(path)) as conn, conn:
                 conn.execute(
                     "CREATE TABLE SessionTable(username, unread_count, summary, last_timestamp, last_msg_type, last_msg_sender, last_sender_display_name)"
                 )
@@ -244,7 +245,7 @@ class CliContractTests(unittest.TestCase):
                 snapshots = list(root.glob("last_check_*.json"))
                 self.assertEqual(len(snapshots), 1)
                 saved = snapshots[0].read_text()
-                with sqlite3.connect(path) as conn:
+                with closing(sqlite3.connect(path)) as conn, conn:
                     conn.execute("UPDATE SessionTable SET last_timestamp=200")
                 with patch.object(module, "output", side_effect=BrokenPipeError):
                     self.runner.invoke(cli, ["new-messages"])

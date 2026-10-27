@@ -2,6 +2,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -28,7 +29,7 @@ class MomentsTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         path = Path(self.tmp.name) / "sns"
         path.mkdir()
-        with sqlite3.connect(path / "sns.db") as conn:
+        with closing(sqlite3.connect(path / "sns.db")) as conn, conn:
             conn.execute(
                 "CREATE TABLE SnsTimeLine(tid INTEGER PRIMARY KEY, user_name TEXT, content TEXT)"
             )
@@ -85,7 +86,7 @@ class MomentsTests(unittest.TestCase):
             decode_cursor("not a cursor")
 
     def test_unsigned_server_id_roundtrip(self):
-        with sqlite3.connect(self.reader.path) as conn:
+        with closing(sqlite3.connect(self.reader.path)) as conn, conn:
             conn.execute("INSERT INTO SnsTimeLine VALUES(?,?,?)", (-1, "a", xml("大 ID", 101)))
         item = self.reader.query(limit=1)["moments"][0]
         self.assertEqual(item["id"], "18446744073709551615")
@@ -100,7 +101,7 @@ class MomentsTests(unittest.TestCase):
             for args in [["list", "--limit", "1"], ["search", "旅行"], ["show", "1"]]:
                 result = runner.invoke(cli, ["moments"] + args + ["--format", "json"])
                 self.assertEqual(result.exit_code, 0, result.output)
-                self.assertEqual(json.loads(result.output)["source"], "local_cache")
+                self.assertEqual(json.loads(result.stdout)["source"], "local_cache")
             result = runner.invoke(cli, ["moments", "show", "1", "--format", "text"])
             self.assertIn("旅行", result.output)
             for args in [
