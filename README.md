@@ -2,6 +2,8 @@
 
 A CLI for native WeChat on Linux: query local history, contacts, groups, sessions and favorites, export conversations, and send text through the desktop client.
 
+Initial version: **0.1.0**. See the [changelog](CHANGELOG.md) for scope and known limitations, including local Moments browsing.
+
 [中文文档](README_CN.md)
 
 ## Installation
@@ -19,6 +21,7 @@ wecli --help
 The dedicated environment includes Python, AT-SPI, GTK and xdotool. No extra apt
 installation is needed for these libraries. To update an existing environment,
 run `conda env update -n wecli -f environment.yml` from the repository root.
+After updating the source, run `python -m pip install --no-deps -e .` to refresh the CLI entry point.
 Conda manages runtime dependencies; pip installs the project last. See
 [desktop runtime](docs/desktop-runtime.md) for setup and verification.
 
@@ -71,6 +74,11 @@ operation; uncertain sends are never retried automatically. `recorded` confirms
 a local record, not delivery. See [sending details](docs/sending.md) and
 [desktop runtime](docs/desktop-runtime.md) (Chinese).
 
+Unlock the desktop and keep WeChat visible before sending. `doctor` currently
+does not detect a locked screen and may report `ready` while sending cannot work.
+Real sending has been verified only with File Transfer on WeChat 4.1.1.4;
+ordinary friends, groups, and other client versions remain unverified.
+
 ### `sessions` — Recent Chats
 
 ```bash
@@ -115,7 +123,7 @@ Returns: nickname, remark, WeChat ID, bio, avatar URL, account type.
 ### `members` — Group Members
 
 ```bash
-wecli members "Team Group"            # All members (JSON)
+wecli members "Team Group"            # All members (readable text)
 wecli members "Team Group" --format text
 ```
 
