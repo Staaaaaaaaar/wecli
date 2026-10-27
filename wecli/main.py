@@ -11,14 +11,21 @@ _VERSION = "0.1.0"
 
 @click.group()
 @click.version_option(version=_VERSION, prog_name="wecli")
-@click.option("--config", "config_path", default=None, envvar="WECLI_CONFIG",
-              help="config.json 路径（默认自动查找）")
+@click.option(
+    "--config",
+    "config_path",
+    default=None,
+    envvar="WECLI_CONFIG",
+    help="config.json 路径（默认自动查找）",
+)
 @click.pass_context
 def cli(ctx, config_path):
-    """wecli — 查询微信消息、联系人等数据
+    """wecli — 查询微信数据，通过桌面客户端发送文本
 
     \b
     使用示例:
+      wecli launch                              # 启用辅助功能并启动微信
+      wecli doctor                              # 检查桌面环境
       wecli init                                # 首次使用：提取密钥
       wecli sessions                            # 最近会话列表
       wecli sessions --limit 10                 # 最近 10 个会话
@@ -28,7 +35,13 @@ def cli(ctx, config_path):
       wecli search "你好" --limit 50           # 全局搜索
       wecli contacts --query "李"              # 搜索联系人
       wecli new-messages                       # 获取增量新消息
+      wecli send filehelper "你好" --yes       # 通过 AT-SPI 发送文本
     """
+    # Desktop setup and send help do not require database initialization.
+    if ctx.invoked_subcommand in ("send", "doctor", "launch"):
+        ctx.obj = config_path
+        return
+
     # init/version 命令不需要 AppContext
     if ctx.invoked_subcommand in ("init", "version"):
         return
@@ -44,18 +57,24 @@ def cli(ctx, config_path):
 
 
 # 注册子命令
-from .commands.init import init
-from .commands.sessions import sessions
-from .commands.history import history
-from .commands.search import search
 from .commands.contacts import contacts
-from .commands.new_messages import new_messages
-from .commands.members import members
+from .commands.doctor import doctor
 from .commands.export import export
+from .commands.favorites import favorites
+from .commands.history import history
+from .commands.init import init
+from .commands.launch import launch
+from .commands.members import members
+from .commands.new_messages import new_messages
+from .commands.search import search
+from .commands.send import send
+from .commands.sessions import sessions
 from .commands.stats import stats
 from .commands.unread import unread
-from .commands.favorites import favorites
 
+cli.add_command(doctor)
+cli.add_command(launch)
+cli.add_command(send)
 cli.add_command(init)
 cli.add_command(sessions)
 cli.add_command(history)
