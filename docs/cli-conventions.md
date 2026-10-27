@@ -57,16 +57,11 @@ expanded. Malformed JSON or invalid field types are reported, never discarded.
 before auto-detection. Other configuration fields are preserved. Config writes
 are atomic and use mode `0600`; new state directories use `0700`.
 
-`new-messages` compares the last timestamp for each conversation in `SessionTable`.
-It cannot reconstruct intermediate messages or reliably detect changes sharing a
-timestamp. It is not an ingestion API or complete event stream. Its first call
-returns unread summaries and saves a snapshot. Per-account snapshots are stored
-next to the selected keys file as `last_check_<account-hash>.json`; the account
-hash is derived from the canonical database directory. Output is written before
-advancing the snapshot; this does not provide transactional downstream delivery
-or concurrent polling guarantees. Corrupt snapshots produce an actionable error.
-Remove a snapshot to reset. The old shared `last_check.json` is not imported;
-upgrading starts a fresh snapshot for each account.
+`new-messages` returns individual structured rows and an explicit caller-owned
+cursor, with JSON output by default. No server-side snapshot advances on read.
+This replaces the old summary API; old last_check snapshots are ignored.
+`history --format json` now returns message objects instead of display strings.
+See [service integration](service-integration.md) for checkpoint and replay semantics.
 
 ## Help, completion, and maintenance
 

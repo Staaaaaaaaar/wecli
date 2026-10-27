@@ -2,7 +2,7 @@
 
 A CLI for native WeChat on Linux: query local history, contacts, groups, sessions and favorites, export conversations, and send text through the desktop client.
 
-Initial version: **0.1.0**. See the [changelog](CHANGELOG.md) for scope and known limitations, including local Moments browsing.
+Current version: **0.1.1**. See the [changelog](CHANGELOG.md) for scope and known limitations, including local Moments browsing.
 
 [中文文档](README_CN.md)
 
@@ -190,27 +190,23 @@ wecli unread                          # All unread sessions
 wecli unread --limit 10 --format text
 ```
 
-### `new-messages` — Changed Conversation Summaries
+### `new-messages` — Individual incremental messages
 
 ```bash
-wecli new-messages                    # First: return unread + save state
-wecli new-messages                    # Subsequent: changed latest summaries
+wecli new-messages --limit 100
+wecli new-messages --cursor "$CURSOR" --limit 100
 ```
 
-This compares session snapshots, not individual message records. Multiple messages
-in one chat may produce only the latest summary; it is not a complete message stream.
-Snapshots are saved next to the selected keys file as `last_check_<account-hash>.json`.
-Delete the matching snapshot to reset. The legacy `last_check.json` is no longer read;
-the first call after upgrading creates a fresh snapshot.
+Read individual rows with stable IDs and an account-bound cursor. Persist `next_cursor` after processing; replay deduplicates by `message_id`. See [service integration](docs/service-integration.md).
 
 ---
 
 ## CLI conventions
 
 All tool-generated help, labels, prompts, and diagnostics are English. User names
-and message content retain their original language. Output stays text when piped;
-scripts should explicitly pass `--format json`. JSON fields remain unchanged,
-while synthesized type labels and notices now use English.
+and message content retain their original language. Most commands default to text;
+`new-messages` defaults to JSON. Scripts should explicitly select their format.
+The message API changes are documented in [service integration](docs/service-integration.md).
 
 Results go to stdout; progress, prompts, and diagnostics go to stderr. `export`
 keeps its `markdown|txt` formats and accepts `--output -` for stdout. Use `-h` or

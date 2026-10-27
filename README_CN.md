@@ -2,7 +2,7 @@
 
 面向 Linux 原生微信的命令行工具，支持本地聊天记录查询、联系人和群成员查询、统计、导出，以及通过桌面客户端发送文本。
 
-初始版本：**0.1.0**。功能范围与已知限制见[版本记录](CHANGELOG.md)，也支持浏览本地朋友圈缓存。
+当前版本：**0.1.1**。功能范围与已知限制见[版本记录](CHANGELOG.md)，也支持浏览本地朋友圈缓存。
 
 [English](README.md)
 
@@ -50,7 +50,7 @@ wecli search "截止日期" --chat "项目组"
 wecli contacts --query "李"
 ```
 
-命令默认输出便于阅读的文本，可通过 `--format json` 获取机器可读结果；`export` 支持 Markdown 和纯文本。使用 `wecli <命令> --help` 查看选项。
+多数命令默认输出便于阅读的文本，`new-messages` 默认 JSON，可通过 `--format json` 获取机器可读结果；`export` 支持 Markdown 和纯文本。使用 `wecli <命令> --help` 查看选项。
 
 ## CLI 约定
 
@@ -196,16 +196,14 @@ wecli unread                          # 所有未读会话
 wecli unread --limit 10 --format text
 ```
 
-### `new-messages` — 会话摘要变化
+### `new-messages` — 逐条增量读取
 
 ```bash
-wecli new-messages                    # 首次: 返回未读会话摘要 + 保存快照
-wecli new-messages                    # 后续: 返回发生变化的最新会话摘要
+wecli new-messages --limit 100
+wecli new-messages --cursor "$CURSOR" --limit 100
 ```
 
-此命令对比会话快照，不会逐条读取新增消息；同一聊天连续多条消息可能只返回最新摘要。
-快照按账号保存在所选密钥文件旁的 `last_check_<account-hash>.json`，删除对应文件可重置。
-旧的 `last_check.json` 不再读取，升级后首次调用会创建新快照。
+逐条返回消息和绑定账号的游标。处理成功后持久化 `next_cursor`，重放时按 `message_id` 去重。详见[服务集成契约](docs/service-integration.md)。
 
 ---
 

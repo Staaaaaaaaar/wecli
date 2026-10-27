@@ -66,9 +66,9 @@ git diff --check
 
 ## 构建与安装验证
 
-版本号当前为 `0.1.0`，唯一来源是 `wecli/__init__.py` 中的 `__version__`；构建元数据和 CLI 共用该值。
+版本号当前为 `0.1.1`，唯一来源是 `wecli/__init__.py` 中的 `__version__`；构建元数据和 CLI 共用该值。
 版本功能范围和已知限制记录在 [CHANGELOG.md](../CHANGELOG.md)。初始版本使用附注标签
-`v0.1.0` 标记通过检查的提交；后续发布同步更新版本来源、版本记录和对应标签。
+`v0.1.1` 标记通过检查的提交；后续发布同步更新版本来源、版本记录和对应标签。
 
 ```bash
 python -m pip install build
