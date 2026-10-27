@@ -39,10 +39,12 @@ wecli init --help
 wecli doctor --help
 wecli launch --help
 wecli send --help
+wecli moments --help
+wecli moments list --help
 git diff --check
 ```
 
-除 `init`、`send`、`doctor` 和 `launch` 外，当前子命令会在显示帮助前加载配置，未初始化时可能提示缺少数据目录或密钥文件。
+除 `init`、`send`、`doctor`、`launch` 和 `moments` 外，当前子命令会在显示帮助前加载配置，未初始化时可能提示缺少数据目录或密钥文件。
 
 真实数据验证请按 [中文使用说明](../README_CN.md) 以普通用户运行 `wecli init`，然后运行会话查询、历史查询和导出。Linux 初始化只为密钥扫描启动 sudo 子进程，沿用当前环境的 Python 绝对路径；子进程经管道返回密钥，父进程保存配置与密钥，无需恢复目录所有权。自动化测试覆盖授权调用、失败保护和子进程输出协议，不代替真实 sudo 与微信数据验证。
 

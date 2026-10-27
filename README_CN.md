@@ -144,6 +144,29 @@ wecli favorites --query "计算机网络"    # 搜索收藏
 
 **类型：** text、image、article、card、video
 
+### `moments` — 本地朋友圈
+
+```bash
+wecli moments list --limit 20
+wecli moments list --user "张三" --since 2026-01-01 --until 2026-10-27
+wecli moments search "旅行" --user "张三"
+wecli moments show <id>
+wecli moments list --before <next_cursor> --limit 20
+```
+
+`list` 和 `search` 按发布时间倒序，支持 `--user`、`--since`、`--until`、
+`--limit`（1–1000）和 `--before`。作者精确匹配微信 ID、昵称或备注；重名时
+请使用微信 ID。结束日期包含当天；时间按本机时区解释。分页时沿用原筛选条件，
+将输出的 `next_cursor` 传给 `--before`，末页游标为 `null`。
+
+`search` 仅对正文进行不区分大小写的字面搜索，不搜索评论。
+`show` 显示正文、地点、媒体地址及参数、缓存中的点赞和评论；ID 使用列表输出的字符串。
+三个指令默认输出 JSON，均支持 `--format text`。
+
+仅查询本机缓存，不联网获取帖子或下载媒体，不保证历史、点赞评论及最新 WAL 增量完整。
+JSON 包含 `source` 和 `notice`；列表通过 `parse_failures` 报告格式异常，
+无法确定发布时间的帖子不会进入列表，可使用 `show` 按 ID 检查。
+
 ### `unread` — 未读会话
 
 ```bash

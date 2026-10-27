@@ -139,6 +139,32 @@ wecli export "Team" --start-time "2026-04-01" --limit 1000
 
 **Options:** `--format markdown|txt`, `--output`, `--start-time`, `--end-time`, `--limit`
 
+### `moments` — Local Moments
+
+```bash
+wecli moments list --limit 20
+wecli moments list --user "Alice" --since 2026-01-01 --until 2026-10-27
+wecli moments search "travel"
+wecli moments show <id>
+wecli moments list --before <next_cursor> --limit 20
+```
+
+`list` and `search` return newest posts first. Both accept `--user`, `--since`,
+`--until`, `--limit` (1–1000), and `--before`. Authors match exact WeChat IDs,
+nicknames, or remarks; use an ID to disambiguate duplicate names. Dates use the
+local timezone; an end date includes the entire day. Keep filters unchanged
+when passing `next_cursor` to `--before`; the final page returns `null`.
+
+Search matches literal text in post bodies, ignoring case. `show` includes
+location, media URLs and parameters, and cached likes/comments. Use the string
+ID returned by the list. All three commands default to JSON and support
+`--format text`.
+
+Only local cached data is read. History, interactions, and the latest WAL changes
+may be incomplete; no posts or media are downloaded. JSON includes `source` and
+`notice`. Lists report malformed records through `parse_failures`; posts without
+a usable timestamp are omitted and can be inspected by ID with `show`.
+
 ### `favorites` — WeChat Bookmarks
 
 ```bash
