@@ -30,6 +30,20 @@ wecli --version
 
 ## 本地检查
 
+开发工具与运行依赖分开安装：
+
+```bash
+python -m pip install --no-deps -e .
+python -m pip install 'ruff>=0.15,<0.18' 'build>=1.2,<2'
+bash scripts/check.sh
+```
+
+也可安装开发 extra：`python -m pip install -e '.[dev]'`。
+Ruff 统一格式、导入顺序和基础错误检查。GitHub Actions 配置在 Linux Python 3.10/3.13
+运行同一套检查并构建分发包；这不代表真实桌面发送或 sudo 验收。
+新命令需遵循 [CLI conventions](cli-conventions.md)。
+
+
 ```bash
 python -m compileall -q wecli
 python -m unittest discover -s tests -v
@@ -44,15 +58,15 @@ wecli moments list --help
 git diff --check
 ```
 
-除 `init`、`send`、`doctor`、`launch` 和 `moments` 外，当前子命令会在显示帮助前加载配置，未初始化时可能提示缺少数据目录或密钥文件。
+所有命令的帮助、版本和参数语法校验均不需要加载数据库。命令在首次使用数据时初始化上下文。
 
 真实数据验证请按 [中文使用说明](../README_CN.md) 以普通用户运行 `wecli init`，然后运行会话查询、历史查询和导出。Linux 初始化只为密钥扫描启动 sudo 子进程，沿用当前环境的 Python 绝对路径；子进程经管道返回密钥，父进程保存配置与密钥，无需恢复目录所有权。自动化测试覆盖授权调用、失败保护和子进程输出协议，不代替真实 sudo 与微信数据验证。
 
-配置和密钥保存在 `~/.wecli/`，可用 `WECLI_CONFIG` 或全局 `--config` 参数指定查询配置。密钥、数据库和聊天导出内容不应提交到仓库。
+配置和密钥保存在 `~/.wecli/`，可用 `WECLI_CONFIG` 或全局 `--config` 参数指定配置（初始化同样适用）。密钥、数据库和聊天导出内容不应提交到仓库。
 
 ## 构建与安装验证
 
-版本号当前为 `0.1.0`。更新版本时同步修改 `pyproject.toml` 和 `wecli/main.py`。
+版本号当前为 `0.1.0`，唯一来源是 `wecli/__init__.py` 中的 `__version__`；构建元数据和 CLI 共用该值。
 
 ```bash
 python -m pip install build
@@ -67,7 +81,7 @@ python3 -m venv /tmp/wecli-release-check
 
 ## 发送命令
 
-- `commands/send.py`：文本输入、一次确认、JSON 输出和退出码。
+- `commands/send.py`：文本输入、一次确认、文本/JSON 输出和退出码。
 - `core/sending.py`：实时联系人读取、精确目标解析、本地新增本人记录核对。
 - `core/desktop.py`：以 JSON stdin/stdout 启动当前 Python 的 AT-SPI worker。
 - `core/atspi_worker.py`：AT-SPI 控件定位、单屏缩放检查、账号目录核对、

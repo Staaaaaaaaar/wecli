@@ -5,7 +5,7 @@
 ```bash
 conda activate wecli
 wecli launch        # 只启动微信，用户自行登录
-wecli doctor        # 登录后检查环境，默认 JSON
+wecli doctor        # 登录后检查环境，默认文本
 ```
 
 `launch` 自动设置辅助功能参数；已有微信会复用。已有微信未启用辅助功能时，处理完未完成操作后，可显式运行 `wecli launch --restart`。wecli 不负责登录。`doctor` 无需密钥，不发送消息，报告当前 Python、工具和原生库路径。
@@ -23,7 +23,7 @@ printf '第一行\n第二行' | wecli send filehelper --file - --yes
 
 收件人支持精确昵称、备注和 wxid，不使用模糊匹配。界面显示名称重名时，即使指定 wxid 也拒绝操作，请先设置唯一备注。普通联系人根据当前数据库中的唯一显示名称定位，仍依赖界面标题与联系人数据一致；这不是通过微信内部 ID 验证界面身份。File Transfer、文件传输助手和 `filehelper` 均对应内置对象。程序核对微信进程打开的数据目录与配置一致，拒绝跨账号操作。目标聊天已有草稿时停止，不覆盖内容；输入后取消或异常可能保留本次草稿，请自行检查。
 
-默认输出 JSON，`--format text` 输出纯文本：
+默认输出便于阅读的文本，`--format json` 输出结构化结果。非交互模式必须使用 `--yes`，否则退出码为 `2`：
 
 | status | 含义 | 退出码 |
 |---|---|---|

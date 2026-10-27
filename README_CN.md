@@ -48,7 +48,23 @@ wecli search "截止日期" --chat "项目组"
 wecli contacts --query "李"
 ```
 
-查询命令默认输出 JSON，可通过 `--format text` 查看纯文本；`export` 支持 Markdown 和纯文本。使用 `wecli <命令> --help` 查看选项。
+命令默认输出便于阅读的文本，可通过 `--format json` 获取机器可读结果；`export` 支持 Markdown 和纯文本。使用 `wecli <命令> --help` 查看选项。
+
+## CLI 约定
+
+工具生成的帮助、提示、状态标签和日志统一为英文；联系人和消息正文保留原文。
+默认文本格式不会因管道或重定向自动切换，脚本应显式使用 `--format json`。
+原有 JSON 字段结构保留，工具生成的类型名称和提示文案改为英文。
+结果写入 stdout，进度、确认提示和诊断写入 stderr。
+所有命令的 `-h` / `--help` 均无需初始化或读取微信数据。
+
+退出码：`0` 成功（包含空结果）、`1` 运行失败、`2` 参数或用法错误、`3` 发送结果不确定。
+非交互发送必须指定 `--yes`；`--dry-run` 只预览。
+配置优先级为 `--config` > `WECLI_CONFIG` > `~/.wecli/config.json`，`init` 同样遵循。
+非交互模式检测到多个账号时明确报错，要求指定目录或配置。
+
+Bash 补全：`eval "$(_WECLI_COMPLETE=bash_source wecli)"`。
+完整输出与兼容性约定见 [CLI conventions](docs/cli-conventions.md)。
 
 ## 使用说明
 
@@ -161,7 +177,7 @@ wecli moments list --before <next_cursor> --limit 20
 
 `search` 仅对正文进行不区分大小写的字面搜索，不搜索评论。
 `show` 显示正文、地点、媒体地址及参数、缓存中的点赞和评论；ID 使用列表输出的字符串。
-三个指令默认输出 JSON，均支持 `--format text`。
+三个指令默认输出便于阅读的文本，均支持 `--format json`。
 
 仅查询本机缓存，不联网获取帖子或下载媒体，不保证历史、点赞评论及最新 WAL 增量完整。
 JSON 包含 `source` 和 `notice`；列表通过 `parse_failures` 报告格式异常，
@@ -174,14 +190,16 @@ wecli unread                          # 所有未读会话
 wecli unread --limit 10 --format text
 ```
 
-### `new-messages` — 增量新消息
+### `new-messages` — 会话摘要变化
 
 ```bash
-wecli new-messages                    # 首次: 返回未读消息 + 保存状态
-wecli new-messages                    # 后续: 仅返回上次以来的新消息
+wecli new-messages                    # 首次: 返回未读会话摘要 + 保存快照
+wecli new-messages                    # 后续: 返回发生变化的最新会话摘要
 ```
 
-状态保存在 `~/.wecli/last_check.json`，删除此文件可重置。
+此命令对比会话快照，不会逐条读取新增消息；同一聊天连续多条消息可能只返回最新摘要。
+快照按账号保存在所选密钥文件旁的 `last_check_<account-hash>.json`，删除对应文件可重置。
+旧的 `last_check.json` 不再读取，升级后首次调用会创建新快照。
 
 ---
 
@@ -206,7 +224,7 @@ wecli new-messages                    # 后续: 仅返回上次以来的新消�
 
 ## 配置
 
-配置、密钥和增量查询状态保存在 `~/.wecli/`。可通过全局参数指定其他配置文件：
+配置、密钥和会话快照保存在 `~/.wecli/`。可通过全局参数指定其他配置文件：
 
 ```bash
 wecli --config /path/to/config.json sessions

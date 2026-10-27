@@ -51,7 +51,7 @@ wecli search "deadline" --chat "Team"
 wecli contacts --query "Alice"
 ```
 
-Query commands return JSON by default; use `--format text` for plain text. `export` supports Markdown and plain text. Run `wecli <command> --help` for options.
+Commands return readable text by default; use `--format json` for machine-readable output. `export` supports Markdown and plain text. Run `wecli <command> --help` for options.
 
 ## Usage
 
@@ -157,8 +157,8 @@ when passing `next_cursor` to `--before`; the final page returns `null`.
 
 Search matches literal text in post bodies, ignoring case. `show` includes
 location, media URLs and parameters, and cached likes/comments. Use the string
-ID returned by the list. All three commands default to JSON and support
-`--format text`.
+ID returned by the list. All three commands default to readable text and support
+`--format json`.
 
 Only local cached data is read. History, interactions, and the latest WAL changes
 may be incomplete; no posts or media are downloaded. JSON includes `source` and
@@ -182,16 +182,52 @@ wecli unread                          # All unread sessions
 wecli unread --limit 10 --format text
 ```
 
-### `new-messages` — Incremental New Messages
+### `new-messages` — Changed Conversation Summaries
 
 ```bash
 wecli new-messages                    # First: return unread + save state
-wecli new-messages                    # Subsequent: only new since last call
+wecli new-messages                    # Subsequent: changed latest summaries
 ```
 
-State saved at `~/.wecli/last_check.json`. Delete to reset.
+This compares session snapshots, not individual message records. Multiple messages
+in one chat may produce only the latest summary; it is not a complete message stream.
+Snapshots are saved next to the selected keys file as `last_check_<account-hash>.json`.
+Delete the matching snapshot to reset. The legacy `last_check.json` is no longer read;
+the first call after upgrading creates a fresh snapshot.
 
 ---
+
+## CLI conventions
+
+All tool-generated help, labels, prompts, and diagnostics are English. User names
+and message content retain their original language. Output stays text when piped;
+scripts should explicitly pass `--format json`. JSON fields remain unchanged,
+while synthesized type labels and notices now use English.
+
+Results go to stdout; progress, prompts, and diagnostics go to stderr. `export`
+keeps its `markdown|txt` formats and accepts `--output -` for stdout. Use `-h` or
+`--help` at any command level without initializing WeChat data.
+
+Exit codes: `0` success (including empty results), `1` operational failure,
+`2` invalid usage, `3` an uncertain send outcome. Sending without a terminal
+requires `--yes`; `--dry-run` never operates the desktop.
+
+Configuration precedence is `--config` > `WECLI_CONFIG` > `~/.wecli/config.json`.
+This also applies to `init`. Invalid configuration and ambiguous account detection
+produce errors; noninteractive commands never silently select an account.
+
+Shell completion (run with the environment active):
+
+```bash
+# Bash
+eval "$(_WECLI_COMPLETE=bash_source wecli)"
+# Zsh
+eval "$(_WECLI_COMPLETE=zsh_source wecli)"
+# Fish
+_WECLI_COMPLETE=fish_source wecli | source
+```
+
+See [CLI contracts](docs/cli-conventions.md) for output and compatibility details.
 
 ## Message types
 
@@ -214,7 +250,7 @@ The `--type` option (on `history` and `search`):
 
 ## Configuration
 
-Configuration, keys, and incremental query state are stored in `~/.wecli/`. To use another configuration file:
+Configuration, keys, and conversation snapshot state are stored in `~/.wecli/`. To use another configuration file:
 
 ```bash
 wecli --config /path/to/config.json sessions
