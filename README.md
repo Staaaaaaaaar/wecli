@@ -213,3 +213,11 @@ sudo chown -R "$(id -u):$(id -g)" "$HOME/.wecli"
 ## Development and releases
 
 See [development and release instructions](docs/development.md) for the repository layout, local checks, and package builds.
+
+## License and provenance
+
+WeCLI is licensed under [Apache-2.0](LICENSE) and includes code derived from
+[wechat-cli](https://github.com/huohuoer/wechat-cli). It is independently
+maintained. See [NOTICE](NOTICE) for attribution and
+[source provenance](docs/provenance.md) for inherited files, modifications,
+and the limitations of the recorded upstream revision and bundled binary.

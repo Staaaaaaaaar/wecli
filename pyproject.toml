@@ -1,5 +1,9 @@
+# Derived from wechat-cli; modified for wecli by Staaaaaaaaar, 2026.
+# SPDX-License-Identifier: Apache-2.0
+# Source and changes: docs/provenance.md
+
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=77.0.3", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +11,8 @@ name = "wecli"
 version = "0.1.0"
 description = "A command-line tool for local WeChat data"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE", "docs/provenance.md"]
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.1,<9",

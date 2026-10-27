@@ -1,3 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+# Derived from wechat-cli: https://github.com/huohuoer/wechat-cli
+# Modified and maintained for wecli by Staaaaaaaaar, 2026.
+# Changes include project adaptation and/or source formatting; see docs/provenance.md.
+
 """macOS 密钥提取 — 通过 C 二进制扫描微信进程内存"""
 
 import os

@@ -1,3 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+# Derived from wechat-cli: https://github.com/huohuoer/wechat-cli
+# Modified and maintained for wecli by Staaaaaaaaar, 2026.
+# Changes include project adaptation and/or source formatting; see docs/provenance.md.
+
 """应用上下文 — 单例持有配置、缓存、密钥等共享状态"""
 
 import atexit

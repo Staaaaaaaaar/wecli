@@ -1,4 +1,11 @@
 /*
+ * SPDX-License-Identifier: Apache-2.0
+ * Derived from wechat-cli: https://github.com/huohuoer/wechat-cli
+ * Modified and maintained for wecli by Staaaaaaaaar, 2026.
+ * Changes include project adaptation and/or source formatting; see docs/provenance.md.
+ */
+
+/*
  * find_all_keys_macos.c - macOS WeChat memory key scanner
  *
  * Scans WeChat process memory for SQLCipher encryption keys in the

@@ -208,3 +208,10 @@ sudo chown -R "$(id -u):$(id -g)" "$HOME/.wecli"
 ## 开发与发布
 
 仓库结构、本地验证和打包步骤见[开发与发布说明](docs/development.md)。
+
+## 许可与来源
+
+WeCLI 采用 [Apache-2.0](LICENSE) 许可，包含基于
+[wechat-cli](https://github.com/huohuoer/wechat-cli) 修改的代码，由本项目独立维护。
+归属说明见 [NOTICE](NOTICE)，沿用文件、修改范围及上游版本和附带二进制的
+来源确认限制见[源码来源说明](docs/provenance.md)。

@@ -1,0 +1,19 @@
+WeCLI
+https://github.com/Staaaaaaaaar/wecli
+
+This project includes code derived from wechat-cli:
+https://github.com/huohuoer/wechat-cli
+Upstream project contributors retain their rights in their contributions.
+The upstream work is licensed under the Apache License, Version 2.0.
+
+WeCLI adaptations and additions are maintained by Staaaaaaaaar, 2026,
+and are distributed under the Apache License, Version 2.0.
+WeCLI is independently maintained; this notice does not imply endorsement
+by upstream contributors or by Tencent/WeChat.
+
+The bundled find_all_keys_macos.arm64 executable was imported with the
+initial source snapshot. Its exact upstream revision and build provenance
+have not been independently verified. See docs/provenance.md for scope,
+source mappings, and known provenance limitations.
+
+This file provides attribution information and does not modify LICENSE.

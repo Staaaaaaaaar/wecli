@@ -1,3 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+# Derived from wechat-cli: https://github.com/huohuoer/wechat-cli
+# Modified and maintained for wecli by Staaaaaaaaar, 2026.
+# Changes include project adaptation and/or source formatting; see docs/provenance.md.
+
 """get-new-messages 命令 — 增量消息查询，状态持久化到磁盘"""
 
 import json
