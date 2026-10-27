@@ -124,3 +124,40 @@ WeCLI AT-SPI 集成验证 2026-10-27T13:43:57+08:00
 系统 `xdotool`、`xclip`、`libxdo3` 清理后已重新核对：三个包均不再安装；
 Conda 环境运行 `wecli doctor --format text` 仍返回 `ready`，
 `dependencies_in_prefix: True`。此复核未发送新消息，也未执行登录操作。
+
+## 2026-10-27 锁屏导致发送失败（待修复）
+
+尝试向群聊发送多行统计消息时，发现桌面已锁定。宿主环境的
+`wecli doctor` 仍报告 `status: ready`、`ready: true`，但 `send` 返回
+`xdotool 操作失败`。本次没有完成群聊发送验收，查询本地历史未发现目标正文。
+
+只读诊断证据：
+
+- `loginctl show-session 2 -p Active -p State -p LockedHint -p Type`：
+  `Type=x11`、`Active=yes`、`State=active`、`LockedHint=yes`。
+- `org.gnome.ScreenSaver.GetActive` 返回 `(true,)`。
+- X11 根窗口 `_NET_ACTIVE_WINDOW` 为 `0x0`，
+  `_NET_SUPPORTING_WM_CHECK` 指向正常存在的 GNOME Shell 窗口。
+- `xdotool getwindowfocus` 对应的窗口名为 `gnome-shell`。
+- 微信窗口存在，但 `_NET_WM_STATE_HIDDEN`，`WM_STATE` 为 `Iconic`；
+  `gnome-shell`、Xorg 和微信进程均在运行。
+
+已定位的失败点是 `wecli/core/atspi_worker.py` 中 `Adapter.start()` 调用
+`xdotool getactivewindow` 保存原窗口焦点。锁屏时没有可用的活动应用窗口，
+该命令失败，程序在输入正文和点击发送之前退出。激活微信窗口也未解除锁屏。
+这组证据支持锁屏导致失败，不能据此认定窗口管理器崩溃。
+
+另外，受限沙箱中无法连接图形显示，曾导致 worker 异常退出并返回 `unknown`；
+宿主环境能连接桌面，但仍受到上述锁屏限制。两种失败应分别诊断。
+
+待修复项：
+
+- `doctor` 增加锁屏状态检查；锁屏时报告未就绪及明确原因。
+- `send` 在操作桌面前检查锁屏，给出“请手动解锁桌面后重试”的错误。
+- 保留 xdotool 的失败子命令和适量诊断信息，避免只报告笼统的“操作失败”。
+- 明确区分锁屏、无法连接图形显示、无活动窗口和窗口管理器不可用。
+- 验证锁屏时不修改草稿、不点击发送，解锁后恢复正常检查；
+  只有发送结果不确定时才使用 `unknown`，并继续要求先核对记录再决定是否重试。
+
+临时处理：由用户手动解锁并确认微信窗口可见，再执行发送。
+项目不保存锁屏密码，也不尝试绕过锁屏。本节仅记录发现，尚未修改诊断或发送逻辑。
