@@ -29,8 +29,17 @@ class SendTests(unittest.TestCase):
         self.runner = CliRunner()
         self.app = patch("wecli.commands.send.AppContext").start()
         patch("wecli.commands.send.send_contacts", return_value=[CONTACT]).start()
+        patch("wecli.commands.send.save_operation").start()
+        patch(
+            "wecli.commands.send.operation_path",
+            return_value="/tmp/wecli-test-nonexistent-operation",
+        ).start()
+        self.receipt_fields = None
         self.desktop = patch("wecli.commands.send.AtspiDesktop").start()
         self.receipt = patch("wecli.commands.send.LocalReceipt").start()
+        self.receipt.return_value.baseline = {}
+        self.receipt.return_value.cutoff = 0
+        self.receipt.return_value.self_username = "wxid_self"
         self.receipt.return_value.wait.return_value = dict(local_id=123)
         self.desktop.return_value.send_text.return_value = dict(
             status="submitted", ui_confirmed=True
@@ -76,11 +85,11 @@ class SendTests(unittest.TestCase):
             ["测试"], "你好", self.app.return_value.db_dir
         )
 
-    def test_ui_only_is_submitted_not_recorded(self):
+    def test_ui_only_is_unknown_without_record(self):
         self.receipt.return_value.wait.return_value = None
         result = self.runner.invoke(cli, ["send", "测试", "hello", "-y", "--format", "json"])
-        self.assertEqual(result.exit_code, 0, result.output)
-        self.assertEqual(json.loads(result.output)["status"], "submitted")
+        self.assertEqual(result.exit_code, 3, result.output)
+        self.assertEqual(json.loads(result.output)["status"], "unknown")
 
     def test_uncertain_result_exits_three_and_does_not_retry(self):
         self.desktop.return_value.send_text.return_value = dict(
@@ -91,6 +100,36 @@ class SendTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 3, result.output)
         self.assertEqual(json.loads(result.output)["status"], "unknown")
         self.desktop.return_value.send_text.assert_called_once()
+
+    def test_operation_uuid_replays_without_second_desktop_send(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "attempt.json")
+
+            def persist(app, result):
+                Path(path).write_text(json.dumps(result))
+
+            with (
+                patch("wecli.commands.send.operation_path", return_value=path),
+                patch("wecli.commands.send.save_operation", side_effect=persist),
+            ):
+                args = [
+                    "send",
+                    "wxid_test",
+                    "hello",
+                    "-y",
+                    "--format",
+                    "json",
+                    "--operation-id",
+                    "12345678-1234-1234-1234-123456789abc",
+                ]
+                first = self.runner.invoke(cli, args)
+                second = self.runner.invoke(cli, args)
+                self.assertEqual(first.exit_code, 0, first.output)
+                self.assertEqual(first.output, second.output)
+                self.desktop.return_value.send_text.assert_called_once()
+                conflict = self.runner.invoke(cli, [*args[:2], "different", *args[3:]])
+                self.assertEqual(conflict.exit_code, 1)
+                self.desktop.return_value.send_text.assert_called_once()
 
     def test_new_local_record_resolves_lost_ui_response(self):
         self.desktop.return_value.send_text.return_value = dict(
@@ -218,6 +257,11 @@ class SubmissionTests(unittest.TestCase):
         adapter = object.__new__(Adapter)
         adapter.message = "你好"
         adapter.attempted = False
+        adapter.app = MagicMock()
+        adapter.request = {"db_dir": "/data/db_storage"}
+        patcher = patch("wecli.core.atspi_worker.account_matches", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         adapter.start = MagicMock()
         adapter.select_chat = MagicMock()
         field = MagicMock()
@@ -229,6 +273,22 @@ class SubmissionTests(unittest.TestCase):
         adapter.wait = MagicMock(return_value=MagicMock())
         adapter.focus = MagicMock()
         return adapter, field
+
+    def test_locked_session_never_starts_desktop_operation(self):
+        adapter, field = self.make_adapter()
+        with patch("wecli.core.atspi_worker.screen_locked", return_value=True):
+            with self.assertRaisesRegex(AdapterError, "locked"):
+                adapter.submit()
+        adapter.start.assert_not_called()
+        self.assertFalse(adapter.attempted)
+
+    def test_account_switch_before_click_is_rejected(self):
+        adapter, field = self.make_adapter()
+        adapter.click = lambda button, before_click: before_click()
+        with patch("wecli.core.atspi_worker.account_matches", return_value=False):
+            with self.assertRaisesRegex(AdapterError, "Account changed"):
+                adapter.submit()
+        self.assertFalse(adapter.attempted)
 
     def test_existing_draft_not_overwritten(self):
         adapter, field = self.make_adapter("existing")

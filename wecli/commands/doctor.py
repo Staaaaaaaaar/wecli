@@ -1,11 +1,15 @@
 """Check Python, AT-SPI, xdotool, and WeChat readiness without sending."""
 
+import os
+import sqlite3
 import sys
 
 import click
 
+from ..core.context import AppContext
 from ..core.desktop import AtspiDesktop, DesktopError
 from ..core.runtime import in_conda
+from ..core.stream import account_id, message_page
 from ..output.formatter import output, readable
 
 
@@ -29,6 +33,30 @@ def doctor(ctx, fmt):
             "error",
             "Desktop dependencies are not all from the active Conda environment. Update it using environment.yml.",
         )
+    result["send_available"] = result["ready"]
+    result["read_available"] = False
+    try:
+        app = AppContext(ctx.obj)
+        page = message_page(app, limit=1)
+        result.update(read_available=True, account_id=account_id(app), self_id=page["self_id"])
+        roots = [
+            root
+            for process in result.get("wechat_apps", [])
+            for root in process.get("database_roots", [])
+        ]
+        result["account_matches"] = bool(roots) and all(
+            os.path.realpath(root) == os.path.realpath(app.db_dir) for root in roots
+        )
+        result["send_available"] = result["send_available"] and result["account_matches"]
+        if not result["account_matches"]:
+            result["account_error"] = (
+                "Running account differs from configuration or cannot be identified"
+            )
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        result["read_error"] = str(exc)
+        result["send_available"] = False
+    result["ready"] = result["send_available"]
+    result["status"] = "ready" if result["ready"] else "not_ready"
     if fmt == "json":
         output(result, "json")
     else:

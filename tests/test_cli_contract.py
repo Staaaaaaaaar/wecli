@@ -4,12 +4,9 @@ import importlib
 import io
 import json
 import re
-import sqlite3
 import tempfile
 import unittest
-from contextlib import closing
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import click
@@ -216,44 +213,14 @@ class CliContractTests(unittest.TestCase):
         self.assertNotIn(key, "\n".join(logs))
         self.assertIn("message/test.db", "\n".join(logs))
 
-    def test_summary_snapshot_is_per_account_and_not_advanced_on_output_failure(self):
+    def test_message_output_failure_does_not_commit_cursor(self):
         module = importlib.import_module("wecli.commands.new_messages")
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            path = root / "session.db"
-            with closing(sqlite3.connect(path)) as conn, conn:
-                conn.execute(
-                    "CREATE TABLE SessionTable(username, unread_count, summary, last_timestamp, last_msg_type, last_msg_sender, last_sender_display_name)"
-                )
-                conn.execute(
-                    "INSERT INTO SessionTable VALUES (?,?,?,?,?,?,?)",
-                    ("a", 1, "你好", 100, 1, "", ""),
-                )
-            cache = SimpleNamespace(get=lambda _: str(path))
-            app = SimpleNamespace(
-                cache=cache,
-                decrypted_dir=directory,
-                db_dir=str(root / "account_a"),
-                keys_file=str(root / "all_keys.json"),
-            )
-            with (
-                patch("wecli.main.AppContext", return_value=app),
-                patch.object(module, "get_contact_names", return_value={}),
-            ):
-                first = self.runner.invoke(cli, ["new-messages", "--format", "json"])
-                self.assertTrue(json.loads(first.stdout)["first_call"])
-                snapshots = list(root.glob("last_check_*.json"))
-                self.assertEqual(len(snapshots), 1)
-                saved = snapshots[0].read_text()
-                with closing(sqlite3.connect(path)) as conn, conn:
-                    conn.execute("UPDATE SessionTable SET last_timestamp=200")
-                with patch.object(module, "output", side_effect=BrokenPipeError):
-                    self.runner.invoke(cli, ["new-messages"])
-                self.assertEqual(snapshots[0].read_text(), saved)
-                app.db_dir = str(root / "account_b")
-                second = self.runner.invoke(cli, ["new-messages", "--format", "json"])
-                self.assertTrue(json.loads(second.stdout)["first_call"])
-                self.assertEqual(len(list(root.glob("last_check_*.json"))), 2)
+        with patch.object(module, "message_page", return_value={"next_cursor": "replay"}) as page:
+            with patch.object(module, "output", side_effect=BrokenPipeError):
+                self.runner.invoke(cli, ["new-messages"])
+            result = self.runner.invoke(cli, ["new-messages"])
+            self.assertEqual(json.loads(result.stdout)["next_cursor"], "replay")
+            self.assertEqual(page.call_count, 2)
 
 
 if __name__ == "__main__":

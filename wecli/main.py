@@ -89,6 +89,7 @@ from .commands.moments import moments
 from .commands.new_messages import new_messages
 from .commands.search import search
 from .commands.send import send
+from .commands.send_status import send_status
 from .commands.sessions import sessions
 from .commands.stats import stats
 from .commands.unread import unread
@@ -96,6 +97,7 @@ from .commands.unread import unread
 cli.add_command(doctor)
 cli.add_command(launch)
 cli.add_command(send)
+cli.add_command(send_status)
 cli.add_command(init)
 cli.add_command(sessions)
 cli.add_command(history)

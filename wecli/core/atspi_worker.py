@@ -6,7 +6,6 @@ import os
 import stat
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -32,16 +31,35 @@ def physical_point(rect, monitor, scale, screen):
 
 def account_matches(pid, expected):
     expected = str(Path(expected).resolve()) + os.sep
+    roots = set()
     try:
         for fd in Path(f"/proc/{pid}/fd").iterdir():
             try:
-                if os.readlink(fd).startswith(expected):
-                    return True
+                target = os.readlink(fd)
+                if "/db_storage/" in target:
+                    roots.add(target.split("/db_storage/")[0] + "/db_storage/")
             except OSError:
                 continue
     except OSError:
-        pass
-    return False
+        return False
+    return roots == {expected}
+
+
+def screen_locked():
+    session = os.environ.get("XDG_SESSION_ID")
+    if not session:
+        return None
+    try:
+        probe = subprocess.run(
+            ["loginctl", "show-session", session, "--property=LockedHint", "--value"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        value = probe.stdout.strip()
+        return value == "yes" if probe.returncode == 0 and value in ("yes", "no") else None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
 
 
 class Adapter:
@@ -270,6 +288,8 @@ class Adapter:
         return count
 
     def submit(self):
+        if screen_locked():
+            raise AdapterError("Desktop session is locked; unlock before sending.")
         self.start()
         self.select_chat()
         field = self.current_input()
@@ -296,6 +316,10 @@ class Adapter:
         button = self.wait(ready)
 
         def verify_and_mark():
+            if screen_locked():
+                raise AdapterError("Desktop session is locked; sending stopped.")
+            if not account_matches(self.app.get_process_id(), self.request["db_dir"]):
+                raise AdapterError("Account changed before sending; operation stopped.")
             field = self.current_input()
             if field is None or field.get_text(0, -1) != self.message:
                 raise AdapterError("Recipient or draft changed before sending. Operation stopped.")
@@ -396,7 +420,10 @@ def inspect_environment(request):
         and all(Path(sys.prefix) in Path(p).parents for p in libraries)
         and Path(sys.prefix) in Path(request["xdotool"]).parents
     )
-    if len(info["wechat_apps"]) != 1:
+    info["screen_locked"] = screen_locked()
+    if info["screen_locked"]:
+        info["error"] = "Desktop session is locked; unlock before sending."
+    elif len(info["wechat_apps"]) != 1:
         info["error"] = "No unique WeChat AT-SPI main process found. Run wecli launch and sign in."
     elif len(info["monitors"]) != 1:
         info["error"] = "Sending requires a single display."
@@ -428,7 +455,7 @@ def main():
         if request.get("operation") == "inspect":
             print(json.dumps(inspect_environment(request), ensure_ascii=False))
             return
-        lock_path = Path(tempfile.gettempdir()) / f"wecli-send-{os.getuid()}.lock"
+        lock_path = Path("/tmp") / f"wecli-send-{os.getuid()}.lock"
         lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         info = os.fstat(lock_fd)
         if info.st_uid != os.getuid() or not stat.S_ISREG(info.st_mode):

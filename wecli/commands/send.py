@@ -1,12 +1,16 @@
 """Select a chat and send plain text through AT-SPI (single-display Linux X11)."""
 
+import json
+import os
 import sqlite3
 import sys
+import uuid
 
 import click
 
 from ..core.context import AppContext
 from ..core.desktop import AtspiDesktop, DesktopError
+from ..core.operations import operation_path, save_operation, send_lock
 from ..core.sending import LocalReceipt, resolve_recipient, send_contacts
 from ..output.formatter import output
 
@@ -23,6 +27,11 @@ from ..output.formatter import output
 @click.option(
     "--dry-run", is_flag=True, help="Preview recipient and message without operating the desktop"
 )
+@click.option(
+    "--operation-id",
+    type=click.UUID,
+    help="Caller-generated UUID; retries return the saved attempt",
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation for this send")
 @click.option("--window-id", type=click.IntRange(min=1), help="WeChat X11 main window ID (decimal)")
 @click.option(
@@ -34,7 +43,9 @@ from ..output.formatter import output
 )
 @click.option("--format", "fmt", type=click.Choice(["json", "text"]), default="text")
 @click.pass_context
-def send(ctx, recipient, message, message_file, dry_run, yes, window_id, timeout, fmt):
+def send(
+    ctx, recipient, message, message_file, dry_run, operation_id, yes, window_id, timeout, fmt
+):
     """Select a chat and send plain text through AT-SPI (single-display Linux X11)."""
     if (message is None) == (message_file is None):
         raise click.UsageError("Provide exactly one of MESSAGE or --file.")
@@ -76,46 +87,62 @@ def send(ctx, recipient, message, message_file, dry_run, yes, window_id, timeout
                 abort=True,
                 err=True,
             )
-        try:
-            receipt = LocalReceipt(app, contact["username"], message)
-        except (OSError, ValueError, sqlite3.Error) as exc:
-            raise click.ClickException(
-                "Cannot read local records before sending; the desktop has not been operated."
-            ) from exc
-        try:
-            response = AtspiDesktop(window_id=window_id, timeout=timeout).send_text(
-                contact["ui_names"], message, app.db_dir
-            )
-        except DesktopError as exc:
-            raise click.ClickException(str(exc)) from exc
-        result.update(response)
-        try:
-            record = receipt.wait(timeout)
-        except (OSError, ValueError, sqlite3.Error):
-            record = None
-        if record:
-            result.update(status="recorded", local_record_confirmed=True, local_record=record)
-            # A local record resolves a lost UI response; it is not delivery proof.
-            if result.get("error"):
-                result["ui_warning"] = result.pop("error")
-        elif not result.get("ui_confirmed"):
-            result.update(status="unknown")
-        else:
-            result["warning"] = (
-                "The UI updated, but no new local outgoing record was confirmed. Check chat history before resending."
-            )
+        with send_lock():
+            attempt_id = str(operation_id or uuid.uuid4())
+            path = operation_path(app, attempt_id)
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as handle:
+                    saved = json.load(handle)
+                if saved["recipient"] != result["recipient"] or saved["message"] != message:
+                    raise click.ClickException("Operation ID already used for a different send")
+                result = saved
+            else:
+                result["operation_id"] = attempt_id
+                _perform_send(app, contact, message, result, window_id, timeout)
     if fmt == "json":
         output(result, "json")
     else:
-        label = {
-            "dry_run": "Dry run",
-            "recorded": "Local record confirmed (delivery not confirmed)",
-            "submitted": "Submitted in the UI (local record not confirmed)",
-            "unknown": "Send outcome unknown",
-        }.get(result["status"], result["status"])
-        output(f"{label}: {name} ({contact['username']})\n{message}", "text")
-        for field in ("error", "warning", "ui_warning"):
-            if result.get(field):
-                click.echo(f"Warning: {result[field]}", err=True)
-    if result["status"] == "unknown":
-        ctx.exit(3)
+        output(result, "text")
+    if result["status"] in ("unknown", "failed"):
+        ctx.exit(3 if result["status"] == "unknown" else 1)
+
+
+def _perform_send(app, contact, message, result, window_id, timeout):
+    result["status"] = "failed"
+    try:
+        receipt = LocalReceipt(app, contact["username"], message)
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        result.update(error=str(exc))
+        save_operation(app, result)
+        return
+    result.update(
+        status="unknown",
+        baseline=[list(k) for k in receipt.baseline],
+        cutoff=receipt.cutoff,
+        self_username=receipt.self_username,
+    )
+    save_operation(app, result)
+    try:
+        response = AtspiDesktop(window_id=window_id, timeout=timeout).send_text(
+            contact["ui_names"], message, app.db_dir
+        )
+    except DesktopError as exc:
+        result.update(status="failed", error=str(exc))
+        save_operation(app, result)
+        return
+    result.update(response)
+    try:
+        record = receipt.wait(timeout)
+    except (OSError, ValueError, sqlite3.Error):
+        record = None
+    if record:
+        result.update(status="recorded", local_record_confirmed=True, local_record=record)
+        # A local record resolves a lost UI response; it is not delivery proof.
+        if result.get("error"):
+            result["ui_warning"] = result.pop("error")
+    else:
+        result.update(
+            status="unknown",
+            warning="No new outgoing local record confirmed; reconcile before resending.",
+        )
+    save_operation(app, result)

@@ -69,6 +69,10 @@ class LocalReceipt:
         self.app, self.username, self.message = app, username, message
         self.cutoff = int(time.time()) - 2
         self.self_username = get_self_username(app.db_dir, app.cache, app.decrypted_dir)
+        if not self.self_username:
+            raise SendError("Cannot identify the configured account")
+        if not app.msg_db_keys:
+            raise SendError("No message databases configured")
         self.baseline = self.records()
 
     def records(self):
@@ -79,7 +83,7 @@ class LocalReceipt:
         for key in self.app.msg_db_keys:
             path = self.app.cache.get(key)
             if not path:
-                continue
+                raise SendError(f"Cannot read message database: {key}")
             with closing(sqlite3.connect(path)) as conn:
                 if not conn.execute(
                     "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
@@ -90,7 +94,7 @@ class LocalReceipt:
                 rows = conn.execute(
                     f"SELECT local_id, create_time, real_sender_id, message_content, WCDB_CT_message_content "
                     f"FROM [{table}] WHERE create_time >= ? AND (local_type & 4294967295) = 1 "
-                    "ORDER BY create_time DESC LIMIT 200",
+                    "ORDER BY create_time DESC",
                     (self.cutoff,),
                 )
                 for local_id, created, sender_id, body, ct in rows:

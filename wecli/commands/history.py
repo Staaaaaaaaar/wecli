@@ -68,6 +68,40 @@ def history(ctx, chat_name, limit, offset, start_time, end_time, fmt, msg_type, 
     if not chat_ctx["db_path"]:
         raise click.ClickException(f"No message history found for {chat_ctx['display_name']}")
 
+    if fmt == "json":
+        from ..core.stream import message_page
+
+        records = []
+        cursor = None
+        while True:
+            page = message_page(app, cursor, 10000, chat_id=chat_ctx["username"])
+            records.extend(
+                m
+                for m in page["messages"]
+                if (start_ts is None or m["timestamp"] >= start_ts)
+                and (end_ts is None or m["timestamp"] <= end_ts)
+                and (not msg_type or (m["type"] & 0xFFFFFFFF) == MSG_TYPE_FILTERS[msg_type][0])
+                and (
+                    not msg_type
+                    or len(MSG_TYPE_FILTERS[msg_type]) == 1
+                    or (m["type"] >> 32) == MSG_TYPE_FILTERS[msg_type][1]
+                )
+            )
+            if not page["has_more"]:
+                break
+            cursor = page["next_cursor"]
+        records.sort(key=lambda m: (m["timestamp"], m["source"], m["local_id"]), reverse=True)
+        output(
+            dict(
+                account_id=page["account_id"],
+                chat_id=chat_ctx["username"],
+                messages=records[offset : offset + limit],
+                failures=None,
+            ),
+            "json",
+        )
+        return
+
     names = get_contact_names(app.cache, app.decrypted_dir)
     type_filter = MSG_TYPE_FILTERS[msg_type] if msg_type else None
     lines, failures = collect_chat_history(
