@@ -42,8 +42,8 @@ def cli(ctx, config_path):
       wecli new-messages                       # 获取增量新消息
       wecli send filehelper "你好" --yes       # 通过 AT-SPI 发送文本
     """
-    # Desktop setup and send help do not require database initialization.
-    if ctx.invoked_subcommand in ("send", "doctor", "launch"):
+    # These commands defer database initialization until it is needed.
+    if ctx.invoked_subcommand in ("send", "doctor", "launch", "moments"):
         ctx.obj = config_path
         return
 
@@ -70,6 +70,7 @@ from .commands.history import history
 from .commands.init import init
 from .commands.launch import launch
 from .commands.members import members
+from .commands.moments import moments
 from .commands.new_messages import new_messages
 from .commands.search import search
 from .commands.send import send
@@ -91,6 +92,7 @@ cli.add_command(export)
 cli.add_command(stats)
 cli.add_command(unread)
 cli.add_command(favorites)
+cli.add_command(moments)
 
 
 if __name__ == "__main__":
