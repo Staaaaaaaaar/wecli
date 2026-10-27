@@ -6,7 +6,7 @@
 
 ## 安装
 
-当前开发和使用面向 Linux 原生微信客户端。推荐用独立 Conda 环境统一管理 Python、AT-SPI、GTK 和 xdotool，无需额外 apt 安装桌面库：
+仅支持 Linux 原生微信客户端。推荐用独立 Conda 环境统一管理 Python、AT-SPI、GTK 和 xdotool，无需额外 apt 安装桌面库：
 
 ```bash
 git clone https://github.com/Staaaaaaaaar/wecli.git

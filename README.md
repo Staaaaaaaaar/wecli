@@ -6,7 +6,7 @@ A CLI for native WeChat on Linux: query local history, contacts, groups, session
 
 ## Installation
 
-Development and usage target Linux with the native WeChat client. Use the dedicated Conda environment:
+Only Linux with the native WeChat client is supported. Use the dedicated Conda environment:
 
 ```bash
 git clone https://github.com/Staaaaaaaaar/wecli.git

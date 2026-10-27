@@ -97,12 +97,13 @@ class ElevationTests(unittest.TestCase):
         scan.assert_called_once_with("db", "keys")
         self.sudo.assert_not_called()
 
-    def test_other_platform_does_not_launch_sudo(self):
-        with patch("wecli.keys.elevation.platform.system", return_value="Darwin"), patch(
-            "wecli.keys.elevation.extract_keys", return_value=KEY_MAP
+    def test_unsupported_platform_rejected_before_scanning(self):
+        with patch("wecli.keys.elevation.platform.system", return_value="Unsupported"), patch(
+            "wecli.keys.elevation.extract_keys"
         ) as scan:
-            self.assertEqual(elevation.extract_keys_for_init("db", "keys"), KEY_MAP)
-        scan.assert_called_once_with("db", "keys")
+            with self.assertRaisesRegex(RuntimeError, "仅支持 Linux"):
+                elevation.extract_keys_for_init("db", "keys")
+        scan.assert_not_called()
         self.permissions.assert_not_called()
         self.sudo.assert_not_called()
 

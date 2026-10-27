@@ -4,7 +4,7 @@
 # Changes include project adaptation and/or source formatting; see docs/provenance.md.
 
 """
-跨平台共享的内存扫描逻辑：HMAC 验证、DB 收集、hex 模式匹配与结果输出。
+Linux 内存扫描辅助逻辑：HMAC 验证、DB 收集、hex 模式匹配与结果输出。
 
 save_results 返回 dict。
 """

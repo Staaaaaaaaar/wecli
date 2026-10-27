@@ -9,7 +9,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "wecli"
 version = "0.1.0"
-description = "A command-line tool for local WeChat data"
+description = "A Linux command-line tool for local WeChat data"
+classifiers = ["Operating System :: POSIX :: Linux"]
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "docs/provenance.md"]
@@ -26,9 +27,6 @@ wecli = "wecli.main:cli"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["wecli*"]
-
-[tool.setuptools.package-data]
-wecli = ["bin/*"]
 
 [project.urls]
 Repository = "https://github.com/Staaaaaaaaar/wecli"

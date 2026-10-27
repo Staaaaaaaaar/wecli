@@ -15,7 +15,7 @@ from . import extract_keys
 def extract_keys_for_init(db_dir, output_path):
     """扫描需要额外权限时提权，结果始终由调用用户保存。"""
     if platform.system() != "Linux":
-        return extract_keys(db_dir, output_path)
+        raise RuntimeError("wecli 仅支持 Linux")
 
     from .scanner_linux import _check_permissions
 

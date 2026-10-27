@@ -3,7 +3,7 @@
 # Modified and maintained for wecli by Staaaaaaaaar, 2026.
 # Changes include project adaptation and/or source formatting; see docs/provenance.md.
 
-"""密钥提取模块 — 根据平台调用对应的 scanner"""
+"""密钥提取模块 — 调用 Linux 内存扫描器"""
 
 import platform
 
@@ -22,15 +22,7 @@ def extract_keys(db_dir, output_path, pid=None):
     Raises:
         RuntimeError: 提取失败
     """
-    system = platform.system().lower()
-    if system == "darwin":
-        from .scanner_macos import extract_keys as _extract
-        return _extract(db_dir, output_path, pid=pid)
-    elif system == "windows":
-        from .scanner_windows import extract_keys as _extract
-        return _extract(db_dir, output_path, pid=pid)
-    elif system == "linux":
-        from .scanner_linux import extract_keys as _extract
-        return _extract(db_dir, output_path, pid=pid)
-    else:
-        raise RuntimeError(f"不支持的平台: {platform.system()}")
+    if platform.system() != "Linux":
+        raise RuntimeError("wecli 仅支持 Linux")
+    from .scanner_linux import extract_keys as _extract
+    return _extract(db_dir, output_path, pid=pid)

@@ -11,9 +11,7 @@ and are distributed under the Apache License, Version 2.0.
 WeCLI is independently maintained; this notice does not imply endorsement
 by upstream contributors or by Tencent/WeChat.
 
-The bundled find_all_keys_macos.arm64 executable was imported with the
-initial source snapshot. Its exact upstream revision and build provenance
-have not been independently verified. See docs/provenance.md for scope,
-source mappings, and known provenance limitations.
+See docs/provenance.md for source mappings and known provenance limitations.
+Only Linux implementations are maintained and distributed in the current tree.
 
 This file provides attribution information and does not modify LICENSE.
