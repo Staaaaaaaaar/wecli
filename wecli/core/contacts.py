@@ -76,11 +76,12 @@ def resolve_username(chat_name, cache, decrypted_dir):
 
 def get_self_username(db_dir, cache, decrypted_dir):
     global _self_username
-    if _self_username:
-        return _self_username
     if not db_dir:
         return ""
-    names = get_contact_names(cache, decrypted_dir)
+    path = cache.get("contact/contact.db")
+    if not path:
+        return ""
+    names = _load_contacts_from(path)[0]
     account_dir = os.path.basename(os.path.dirname(db_dir))
     candidates = [account_dir]
     m = re.fullmatch(r"(.+)_([0-9a-fA-F]{4,})", account_dir)

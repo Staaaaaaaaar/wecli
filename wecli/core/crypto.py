@@ -55,28 +55,32 @@ def decrypt_wal(wal_path, out_path, enc_key):
     wal_size = os.path.getsize(wal_path)
     if wal_size <= WAL_HEADER_SZ:
         return 0
-    patched = 0
+    # Only replay a committed prefix. A complete frame can still belong to an
+    # open transaction; exposing it could advance an ingestion cursor too early.
+    frame_size = WAL_FRAME_HEADER_SZ + PAGE_SZ
     with open(wal_path, "rb") as wf, open(out_path, "r+b") as df:
         wal_hdr = wf.read(WAL_HEADER_SZ)
-        wal_salt1 = struct.unpack(">I", wal_hdr[16:20])[0]
-        wal_salt2 = struct.unpack(">I", wal_hdr[20:24])[0]
-        frame_size = WAL_FRAME_HEADER_SZ + PAGE_SZ
+        salts = wal_hdr[16:24]
+        committed_frames = 0
+        committed_size = 0
+        frame_count = 0
         while wf.tell() + frame_size <= wal_size:
             fh = wf.read(WAL_FRAME_HEADER_SZ)
-            if len(fh) < WAL_FRAME_HEADER_SZ:
+            pgno, db_size = struct.unpack(">II", fh[:8])
+            if fh[8:16] != salts or not 1 <= pgno <= 1000000:
                 break
-            pgno = struct.unpack(">I", fh[0:4])[0]
-            frame_salt1 = struct.unpack(">I", fh[8:12])[0]
-            frame_salt2 = struct.unpack(">I", fh[12:16])[0]
+            wf.seek(PAGE_SZ, os.SEEK_CUR)
+            frame_count += 1
+            if db_size:
+                committed_frames = frame_count
+                committed_size = db_size
+        wf.seek(WAL_HEADER_SZ)
+        for _ in range(committed_frames):
+            fh = wf.read(WAL_FRAME_HEADER_SZ)
+            pgno = struct.unpack(">I", fh[:4])[0]
             ep = wf.read(PAGE_SZ)
-            if len(ep) < PAGE_SZ:
-                break
-            if pgno == 0 or pgno > 1000000:
-                continue
-            if frame_salt1 != wal_salt1 or frame_salt2 != wal_salt2:
-                continue
-            dec = decrypt_page(enc_key, ep, pgno)
             df.seek((pgno - 1) * PAGE_SZ)
-            df.write(dec)
-            patched += 1
-    return patched
+            df.write(decrypt_page(enc_key, ep, pgno))
+        if committed_frames:
+            df.truncate(committed_size * PAGE_SZ)
+    return committed_frames
