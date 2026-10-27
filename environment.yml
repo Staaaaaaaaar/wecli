@@ -1,0 +1,19 @@
+name: wecli
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.10
+  - pip
+  - setuptools>=68
+  - wheel
+  - click>=8.1,<9
+  - pycryptodome>=3.19,<4
+  - zstandard>=0.22,<1
+  - pygobject>=3.46,<4
+  - gtk3=3.24.*
+  # GTK3's at-spi2-atk package currently requires this compatible core series.
+  - at-spi2-core=2.40.*
+  - xdotool>=3.20211022,<5
+  - pip:
+      - -e .
