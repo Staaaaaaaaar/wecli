@@ -1,29 +1,29 @@
 # WeCLI
 
-面向 Linux 本地微信数据的命令行工具，用于查询本地聊天记录、联系人、群成员、会话和收藏，支持聊天统计与导出。
+面向 Linux 原生微信的命令行工具，支持本地聊天记录查询、联系人和群成员查询、统计、导出，以及通过桌面客户端发送文本。
 
 [English](README.md)
 
 ## 安装
 
-当前开发和使用面向 Linux 原生微信客户端，需要 Python 3.10 或更高版本。使用虚拟环境从源码安装：
+当前开发和使用面向 Linux 原生微信客户端。推荐用独立 Conda 环境统一管理 Python、AT-SPI、GTK 和 xdotool，无需额外 apt 安装桌面库：
 
 ```bash
 git clone https://github.com/Staaaaaaaaar/wecli.git
 cd wecli
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
+conda env create -f environment.yml
+conda activate wecli
 wecli --help
 ```
 
-使用 Conda 时，激活已有环境即可，无需再创建 `.venv`。更新源码后可重新执行 `python -m pip install -e .` 刷新命令入口。
+已有 `wecli` 环境时，在仓库根目录执行 `conda env update -n wecli -f environment.yml`。
+更新源码后可执行 `python -m pip install --no-deps -e .` 刷新入口。运行依赖由 Conda 管理，pip 最后安装项目本身。详细环境说明见[桌面运行环境](docs/desktop-runtime.md)。
 
 ## 快速开始
 
 ### 1. 初始化
 
-先启动微信并登录。在 Linux 的已激活 Python 环境中执行：
+先运行 `wecli launch`，由用户在微信窗口自行登录，再在已激活的环境中执行：
 
 ```bash
 wecli init
@@ -51,6 +51,20 @@ wecli contacts --query "李"
 查询命令默认输出 JSON，可通过 `--format text` 查看纯文本；`export` 支持 Markdown 和纯文本。使用 `wecli <命令> --help` 查看选项。
 
 ## 使用说明
+
+### `send` — 发送文本（Linux X11）
+
+```bash
+wecli launch                         # 只启动微信，用户自行登录
+wecli doctor                         # 登录后检查环境
+wecli send filehelper "你好" --dry-run
+wecli send filehelper "你好"          # 确认一次后发送
+wecli send "唯一备注" --file message.txt --yes
+```
+
+通过 AT-SPI 自动定位聊天、核对草稿并发送，支持单屏整数缩放 X11。
+界面重名或已有草稿时停止；结果不确定时不自动重发。`recorded` 表示本地记录已确认，不代表送达。
+输入方式、状态和限制见[发送说明](docs/sending.md)，依赖和启动配置见[桌面运行环境](docs/desktop-runtime.md)。
 
 ### `sessions` — 最近会话
 

@@ -1,29 +1,32 @@
 # WeCLI
 
-A command-line tool for local WeChat data on Linux. Query local chat history, contacts, group members, sessions, and favorites, with conversation statistics and export.
+A CLI for native WeChat on Linux: query local history, contacts, groups, sessions and favorites, export conversations, and send text through the desktop client.
 
 [中文文档](README_CN.md)
 
 ## Installation
 
-Development and usage currently target Linux with the native WeChat client and Python 3.10 or later. Install from source in a virtual environment:
+Development and usage target Linux with the native WeChat client. Use the dedicated Conda environment:
 
 ```bash
 git clone https://github.com/Staaaaaaaaar/wecli.git
 cd wecli
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
+conda env create -f environment.yml
+conda activate wecli
 wecli --help
 ```
 
-If using Conda, activate your existing environment instead of creating `.venv`. After updating the source, rerun `python -m pip install -e .` to refresh the command entry point.
+The dedicated environment includes Python, AT-SPI, GTK and xdotool. No extra apt
+installation is needed for these libraries. To update an existing environment,
+run `conda env update -n wecli -f environment.yml` from the repository root.
+Conda manages runtime dependencies; pip installs the project last. See
+[desktop runtime](docs/desktop-runtime.md) for setup and verification.
 
 ## Quick start
 
 ### 1. Initialize
 
-Start WeChat and log in. With your Python environment activated on Linux:
+Run `wecli launch`, log in yourself in the WeChat window, then initialize from the activated environment:
 
 ```bash
 wecli init
@@ -51,6 +54,22 @@ wecli contacts --query "Alice"
 Query commands return JSON by default; use `--format text` for plain text. `export` supports Markdown and plain text. Run `wecli <command> --help` for options.
 
 ## Usage
+
+### `send` — Send text (Linux X11)
+
+```bash
+wecli launch                         # Launch only; complete login yourself
+wecli doctor
+wecli send filehelper "Hello" --dry-run
+wecli send filehelper "Hello"        # Confirm once, then send
+wecli send "Unique remark" --file message.txt --yes
+```
+
+AT-SPI identifies the chat and verifies the draft before sending. One X11 monitor
+with integer scaling is supported. Ambiguous names and existing drafts stop the
+operation; uncertain sends are never retried automatically. `recorded` confirms
+a local record, not delivery. See [sending details](docs/sending.md) and
+[desktop runtime](docs/desktop-runtime.md) (Chinese).
 
 ### `sessions` — Recent Chats
 
