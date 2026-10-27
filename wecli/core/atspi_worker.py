@@ -19,10 +19,14 @@ def physical_point(rect, monitor, scale, screen):
     """Only an unambiguous single-monitor logical -> X11 mapping is admitted."""
     mx, my, mw, mh = monitor
     if (mx, my) != (0, 0) or (mw * scale, mh * scale) != tuple(screen):
-        raise AdapterError("显示坐标与缩放不一致；当前支持单屏整数缩放 X11。")
+        raise AdapterError(
+            "Display coordinates and scaling disagree. A single X11 display with integer scaling is required."
+        )
     x, y, w, h = rect
     if w <= 0 or h <= 0 or x < 0 or y < 0 or x + w > mw or y + h > mh:
-        raise AdapterError("目标控件不完全在屏幕内，请将微信窗口移到屏幕内再执行。")
+        raise AdapterError(
+            "Target control is not fully on screen. Move the WeChat window on screen and retry."
+        )
     return round((x + w / 2) * scale), round((y + h / 2) * scale)
 
 
@@ -68,7 +72,7 @@ class Adapter:
                 args, text=True, stderr=subprocess.DEVNULL, timeout=5
             ).strip()
         except (OSError, subprocess.SubprocessError) as exc:
-            raise AdapterError(f"{args[0]} 操作失败。") from exc
+            raise AdapterError(f"{args[0]} failed.") from exc
 
     def showing(self, node):
         return node.get_state_set().contains(self.A.StateType.SHOWING)
@@ -85,13 +89,12 @@ class Adapter:
                 continue
             count += 1
             if count > 4000 or depth > 30:
-                raise AdapterError("微信控件树超出支持范围。")
+                raise AdapterError("WeChat accessibility tree exceeds supported limits.")
             try:
                 yield node
                 children = node.get_child_count()
                 stack.extend(
-                    (node.get_child_at_index(i), depth + 1)
-                    for i in reversed(range(children))
+                    (node.get_child_at_index(i), depth + 1) for i in reversed(range(children))
                 )
             except self.GLib.Error:
                 continue
@@ -107,7 +110,7 @@ class Adapter:
             if value:
                 return value
             if time.monotonic() >= deadline:
-                raise AdapterError("等待微信界面更新超时。")
+                raise AdapterError("Timed out waiting for the WeChat UI to update.")
             time.sleep(0.15)
 
     def start(self):
@@ -124,26 +127,22 @@ class Adapter:
                 windows = [w for w in windows if w == str(wanted)]
             # Main application should have exactly one visible top-level frame.
             frames = [app.get_child_at_index(i) for i in range(app.get_child_count())]
-            frames = [
-                f
-                for f in frames
-                if f and self.showing(f) and f.get_role_name() == "frame"
-            ]
+            frames = [f for f in frames if f and self.showing(f) and f.get_role_name() == "frame"]
             if len(windows) == 1 and len(frames) == 1:
                 matches.append((app, windows[0], frames[0]))
         if len(matches) != 1:
             raise AdapterError(
-                "未找到唯一微信 AT-SPI 主窗口。请登录，并用 QT_ACCESSIBILITY=1 "
-                "QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 /usr/bin/wechat 启动，或使用 wecli launch；多窗口可指定 --window-id。"
+                "No unique WeChat AT-SPI main window found. Sign in and start with QT_ACCESSIBILITY=1 "
+                "QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 /usr/bin/wechat, or use wecli launch. Use --window-id to select a window."
             )
         self.app, self.window, frame = matches[0]
         if not account_matches(self.app.get_process_id(), self.request["db_dir"]):
             raise AdapterError(
-                "运行中微信账号与 --config 的数据库目录不匹配，或无法读取进程文件列表。"
+                "The running account does not match the --config database directory, or process files cannot be read."
             )
         display = self.G.Display.get_default()
         if not display or display.get_n_monitors() != 1:
-            raise AdapterError("当前自动发送只支持单显示器 X11，会拒绝多屏布局。")
+            raise AdapterError("Automatic sending requires a single X11 display.")
         monitor = display.get_monitor(0)
         r = monitor.get_geometry()
         self.monitor = r.x, r.y, r.width, r.height
@@ -161,7 +160,9 @@ class Adapter:
             abs(r.width * self.scale - int(geometry["WIDTH"])) > 4 * self.scale
             or abs(r.height * self.scale - int(geometry["HEIGHT"])) > 40 * self.scale
         ):
-            raise AdapterError("微信与桌面缩放不一致，无法安全转换控件坐标。")
+            raise AdapterError(
+                "WeChat and desktop scaling disagree; cannot safely convert control coordinates."
+            )
         # Validate display mapping before changing the desktop.
         physical_point((0, 0, 1, 1), self.monitor, self.scale, self.screen)
         self.origin = self.run("xdotool", "getactivewindow")
@@ -175,16 +176,14 @@ class Adapter:
 
     def focus(self):
         if self.run("xdotool", "getactivewindow") != self.window:
-            raise AdapterError("微信窗口焦点改变，已停止操作。")
+            raise AdapterError("WeChat window focus changed. Operation stopped.")
 
     def click(self, node, before_click=None):
         self.focus()
         if not self.showing(node):
-            raise AdapterError("目标控件不可见。")
+            raise AdapterError("Target control is not visible.")
         r = node.get_extents(self.A.CoordType.SCREEN)
-        x, y = physical_point(
-            (r.x, r.y, r.width, r.height), self.monitor, self.scale, self.screen
-        )
+        x, y = physical_point((r.x, r.y, r.width, r.height), self.monitor, self.scale, self.screen)
         self.run("xdotool", "mousemove", "--sync", str(x), str(y))
         self.focus()
         if before_click:
@@ -194,11 +193,7 @@ class Adapter:
     def current_input(self):
         nodes = self.nodes()
         inputs = [n for n in nodes if self.editable(n) and n.get_name() in self.names]
-        titles = [
-            n
-            for n in nodes
-            if n.get_role_name() == "label" and n.get_name() in self.names
-        ]
+        titles = [n for n in nodes if n.get_role_name() == "label" and n.get_name() in self.names]
         if len(inputs) == 1 and titles:
             return inputs[0]
         return None
@@ -233,15 +228,13 @@ class Adapter:
     def search_chat(self):
         # Search only exact local contact results; never open Internet suggestions.
         searches = [
-            n
-            for n in self.nodes()
-            if self.editable(n) and n.get_name() in ("Search", "搜索")
+            n for n in self.nodes() if self.editable(n) and n.get_name() in ("Search", "搜索")
         ]
         if len(searches) != 1:
-            raise AdapterError("无法定位唯一聊天项或搜索框。")
+            raise AdapterError("Cannot locate a unique chat item or search box.")
         search = searches[0]
         if not search.grab_focus() or not search.set_text_contents(self.names[0]):
-            raise AdapterError("无法操作微信搜索框。")
+            raise AdapterError("Cannot operate the WeChat search box.")
         self.focus()
         # Qt search requires a real edit event after EditableText assignment.
         self.run("xdotool", "key", "--clearmodifiers", "End", "space", "BackSpace")
@@ -249,12 +242,10 @@ class Adapter:
         def result():
             nodes = self.nodes()
             hits = [
-                n
-                for n in nodes
-                if n.get_role_name() == "list item" and n.get_name() in self.names
+                n for n in nodes if n.get_role_name() == "list item" and n.get_name() in self.names
             ]
             if len(hits) > 1:
-                raise AdapterError("微信搜索出现多个同名结果，已停止。")
+                raise AdapterError("WeChat search returned ambiguous names. Operation stopped.")
             return hits[0] if hits else None
 
         hit = self.wait(result)
@@ -283,13 +274,12 @@ class Adapter:
         self.select_chat()
         field = self.current_input()
         if field is None or field.get_character_count() != 0:
-            raise AdapterError("目标聊天已有草稿，已停止；请自行处理草稿后再运行。")
+            raise AdapterError("The target chat has a draft. Resolve it in WeChat before retrying.")
         before = self.matching_messages()
-        if (
-            not field.set_text_contents(self.message)
-            or field.get_text(0, -1) != self.message
-        ):
-            raise AdapterError("输入框文本回读不一致，已停止；请检查微信草稿。")
+        if not field.set_text_contents(self.message) or field.get_text(0, -1) != self.message:
+            raise AdapterError(
+                "Input text did not match on readback. Operation stopped; check the WeChat draft."
+            )
 
         def ready():
             buttons = [
@@ -300,7 +290,7 @@ class Adapter:
                 and n.get_state_set().contains(self.A.StateType.ENABLED)
             ]
             if len(buttons) > 1:
-                raise AdapterError("无法确定唯一发送按钮。")
+                raise AdapterError("Cannot identify a unique Send button.")
             return buttons[0] if buttons else None
 
         button = self.wait(ready)
@@ -308,7 +298,7 @@ class Adapter:
         def verify_and_mark():
             field = self.current_input()
             if field is None or field.get_text(0, -1) != self.message:
-                raise AdapterError("发送前收件人或草稿改变，已停止。")
+                raise AdapterError("Recipient or draft changed before sending. Operation stopped.")
             self.focus()
             # Any error starting the click is uncertain. Never click a second time.
             self.attempted = True
@@ -358,11 +348,11 @@ def inspect_environment(request):
         monitors=[],
     )
     if not info["display"] or not info["session_bus"] or info["session"] == "wayland":
-        info["error"] = "需要本机 X11 图形会话和会话 D-Bus。"
+        info["error"] = "A local X11 desktop session and session D-Bus are required."
         return info
     display = Gdk.Display.get_default()
     if not display:
-        info["error"] = "无法连接图形显示。"
+        info["error"] = "Cannot connect to the display."
         return info
     for i in range(display.get_n_monitors()):
         monitor = display.get_monitor(i)
@@ -380,9 +370,7 @@ def inspect_environment(request):
     for i in range(desktop.get_child_count()):
         app = desktop.get_child_at_index(i)
         if app and app.get_name().lower() in ("wechat", "weixin"):
-            info["wechat_apps"].append(
-                dict(name=app.get_name(), pid=app.get_process_id())
-            )
+            info["wechat_apps"].append(dict(name=app.get_name(), pid=app.get_process_id()))
     # These are loaded library paths, not claims derived from package metadata.
     libraries = set()
     for line in Path("/proc/self/maps").read_text().splitlines():
@@ -409,9 +397,9 @@ def inspect_environment(request):
         and Path(sys.prefix) in Path(request["xdotool"]).parents
     )
     if len(info["wechat_apps"]) != 1:
-        info["error"] = "未发现唯一微信 AT-SPI 主进程，请先运行 wecli launch 并登录。"
+        info["error"] = "No unique WeChat AT-SPI main process found. Run wecli launch and sign in."
     elif len(info["monitors"]) != 1:
-        info["error"] = "当前发送只支持单显示器。"
+        info["error"] = "Sending requires a single display."
     else:
         pid = info["wechat_apps"][0]["pid"]
         roots = set()
@@ -426,7 +414,9 @@ def inspect_environment(request):
         if roots:
             info["status"] = "ready"
         else:
-            info["error"] = "微信尚未登录，或无法确认已打开的账号数据库。"
+            info["error"] = (
+                "WeChat is not signed in, or the open account database could not be identified."
+            )
     return info
 
 
@@ -442,17 +432,19 @@ def main():
         lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         info = os.fstat(lock_fd)
         if info.st_uid != os.getuid() or not stat.S_ISREG(info.st_mode):
-            raise AdapterError("发送锁文件不属于当前用户。")
+            raise AdapterError("The send lock file is not owned by the current user.")
         try:
             fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
-            raise AdapterError("另一个 wecli send 正在操作桌面，请等待完成。") from exc
+            raise AdapterError(
+                "Another wecli send is operating the desktop. Wait for it to finish."
+            ) from exc
         adapter = Adapter(request)
         response = adapter.submit()
     except (ImportError, ValueError):
         response = dict(
             status="failed",
-            error="当前 Python 的 AT-SPI 依赖不可用，请按 environment.yml 更新环境，然后运行 wecli doctor。",
+            error="AT-SPI dependencies are unavailable in this Python environment. Update using environment.yml, then run wecli doctor.",
         )
     except Exception as exc:
         attempted = adapter is not None and adapter.attempted
@@ -461,7 +453,7 @@ def main():
             ui_confirmed=False,
             error=str(exc)
             if isinstance(exc, (AdapterError, OSError))
-            else "AT-SPI 控件操作异常，请检查微信窗口。",
+            else "AT-SPI control operation failed. Check the WeChat window.",
         )
     finally:
         if adapter:

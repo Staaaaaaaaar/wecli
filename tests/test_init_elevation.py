@@ -3,17 +3,16 @@
 import importlib
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from click.testing import CliRunner
 
 from wecli.keys import elevation
-
 
 RECORDS = {"message/test.db": {"salt": "ab" * 16, "enc_key": "cd" * 32}}
 KEY_MAP = {"ab" * 16: "cd" * 32}
@@ -47,16 +46,20 @@ class ElevationTests(unittest.TestCase):
                 "import wecli.keys.scanner_linux as scanner; "
                 f"records = {RECORDS!r}; "
                 "exec('def fake_scan(db_dir, output_path):\\n"
-                "    print(\"scan progress\")\\n"
-                "    with open(output_path, \"w\") as f:\\n"
-                "        __import__(\"json\").dump(records, f)'); "
+                '    print("scan progress")\\n'
+                '    with open(output_path, "w") as f:\\n'
+                '        __import__("json").dump(records, f)\'); '
                 "scanner.extract_keys = fake_scan; "
             )
             bootstrap = bootstrap.replace(
-                "from wecli.keys.elevation import scan_main;", setup + "from wecli.keys.elevation import scan_main;"
+                "from wecli.keys.elevation import scan_main;",
+                setup + "from wecli.keys.elevation import scan_main;",
             )
-            result = run([sys.executable, "-I", "-c", bootstrap, command[-1]],
-                         stderr=subprocess.PIPE, **kwargs)
+            result = run(
+                [sys.executable, "-I", "-c", bootstrap, command[-1]],
+                stderr=subprocess.PIPE,
+                **kwargs,
+            )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("scan progress", result.stderr)
             return result
@@ -70,24 +73,30 @@ class ElevationTests(unittest.TestCase):
         child.assert_called_once()
 
     def test_sudo_failure_preserves_existing_keys(self):
-        with patch("wecli.keys.elevation.subprocess.run", return_value=subprocess.CompletedProcess([], 1, "")):
-            with self.assertRaisesRegex(RuntimeError, "sudo 密钥扫描未完成"):
+        with patch(
+            "wecli.keys.elevation.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 1, ""),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "sudo key scanning failed"):
                 elevation.extract_keys_for_init(self.directory.name, str(self.output))
         self.assertEqual(self.output.read_text(), "previous keys")
 
     def test_invalid_response_preserves_existing_keys(self):
         for response in ("", "progress\n{}", "{}", "[]", '{"db": {}}'):
-            with self.subTest(response=response), patch(
-                "wecli.keys.elevation.subprocess.run",
-                return_value=subprocess.CompletedProcess([], 0, response),
+            with (
+                self.subTest(response=response),
+                patch(
+                    "wecli.keys.elevation.subprocess.run",
+                    return_value=subprocess.CompletedProcess([], 0, response),
+                ),
             ):
-                with self.assertRaisesRegex(RuntimeError, "无效结果"):
+                with self.assertRaisesRegex(RuntimeError, "invalid results"):
                     elevation.extract_keys_for_init(self.directory.name, str(self.output))
                 self.assertEqual(self.output.read_text(), "previous keys")
 
     def test_missing_sudo(self):
         self.sudo.return_value = None
-        with self.assertRaisesRegex(RuntimeError, "未安装 sudo"):
+        with self.assertRaisesRegex(RuntimeError, "not installed"):
             elevation.extract_keys_for_init(self.directory.name, str(self.output))
 
     def test_existing_permission_does_not_launch_sudo(self):
@@ -98,10 +107,11 @@ class ElevationTests(unittest.TestCase):
         self.sudo.assert_not_called()
 
     def test_unsupported_platform_rejected_before_scanning(self):
-        with patch("wecli.keys.elevation.platform.system", return_value="Unsupported"), patch(
-            "wecli.keys.elevation.extract_keys"
-        ) as scan:
-            with self.assertRaisesRegex(RuntimeError, "仅支持 Linux"):
+        with (
+            patch("wecli.keys.elevation.platform.system", return_value="Unsupported"),
+            patch("wecli.keys.elevation.extract_keys") as scan,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "supports Linux only"):
                 elevation.extract_keys_for_init("db", "keys")
         scan.assert_not_called()
         self.permissions.assert_not_called()
@@ -116,9 +126,10 @@ class InitTests(unittest.TestCase):
             keys = Path(directory) / "all_keys.json"
             config.write_text("{}")
             keys.write_text("{}")
-            with patch.multiple(module, STATE_DIR=directory, CONFIG_FILE=str(config), KEYS_FILE=str(keys)), patch(
-                "wecli.keys.elevation.extract_keys_for_init", return_value=KEY_MAP
-            ) as scan:
+            with (
+                patch.multiple(module, CONFIG_FILE=str(config), KEYS_FILE=str(keys)),
+                patch("wecli.keys.elevation.extract_keys_for_init", return_value=KEY_MAP) as scan,
+            ):
                 runner = CliRunner()
                 result = runner.invoke(module.init, [])
                 self.assertEqual(result.exit_code, 0, result.output)
@@ -132,11 +143,17 @@ class InitTests(unittest.TestCase):
         module = importlib.import_module("wecli.commands.init")
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "config.json"
-            config.write_text("previous config")
-            with patch.multiple(module, STATE_DIR=directory, CONFIG_FILE=str(config), KEYS_FILE=str(Path(directory) / "keys")), patch(
-                "wecli.keys.elevation.extract_keys_for_init", side_effect=RuntimeError("sudo cancelled")
+            config.write_text('{"db_dir": "previous"}')
+            with (
+                patch.multiple(
+                    module, CONFIG_FILE=str(config), KEYS_FILE=str(Path(directory) / "keys")
+                ),
+                patch(
+                    "wecli.keys.elevation.extract_keys_for_init",
+                    side_effect=RuntimeError("sudo cancelled"),
+                ),
             ):
                 result = CliRunner().invoke(module.init, ["--force", "--db-dir", directory])
                 self.assertEqual(result.exit_code, 1)
                 self.assertIn("sudo cancelled", result.output)
-                self.assertEqual(config.read_text(), "previous config")
+                self.assertEqual(config.read_text(), '{"db_dir": "previous"}')

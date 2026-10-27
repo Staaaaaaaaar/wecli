@@ -19,17 +19,17 @@ def desktop_tool(name):
     if local.is_file() and os.access(local, os.X_OK):
         if in_conda() and Path(sys.prefix).resolve() not in local.resolve().parents:
             raise RuntimeErrorDetail(
-                f"{name} 指向当前 Conda 环境以外，请按 environment.yml 修复。"
+                f"{name} is outside the active Conda environment. Repair it using environment.yml."
             )
         return str(local)
     if in_conda():
         raise RuntimeErrorDetail(
-            f"当前 Conda 环境缺少 {name}，请按 environment.yml 更新环境。"
+            f"The active Conda environment is missing {name}. Update it using environment.yml."
         )
     found = shutil.which(name)
     if not found:
         raise RuntimeErrorDetail(
-            f"缺少 {name}，请按 environment.yml 创建完整运行环境。"
+            f"Missing {name}. Create the runtime environment using environment.yml."
         )
     return found
 
@@ -105,8 +105,7 @@ def clean_wechat_env(source=None):
             return False
         resolved = Path(path).resolve()
         return not any(
-            resolved == Path(p).resolve() or Path(p).resolve() in resolved.parents
-            for p in prefixes
+            resolved == Path(p).resolve() or Path(p).resolve() in resolved.parents for p in prefixes
         )
 
     if "XDG_DATA_DIRS" in env:

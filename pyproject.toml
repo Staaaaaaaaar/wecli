@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wecli"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A Linux command-line tool for local WeChat data"
 classifiers = ["Operating System :: POSIX :: Linux"]
 readme = "README.md"
@@ -30,3 +30,19 @@ include = ["wecli*"]
 
 [project.urls]
 Repository = "https://github.com/Staaaaaaaaar/wecli"
+
+[tool.setuptools.dynamic]
+version = {attr = "wecli.__version__"}
+
+[project.optional-dependencies]
+dev = ["ruff>=0.15,<0.18", "build>=1.2,<2"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"wecli/main.py" = ["E402"]

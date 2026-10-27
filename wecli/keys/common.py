@@ -13,7 +13,6 @@ import hashlib
 import hmac as hmac_mod
 import json
 import os
-import re
 import struct
 
 PAGE_SZ = 4096
@@ -26,8 +25,8 @@ def verify_enc_key(enc_key, db_page1):
     salt = db_page1[:SALT_SZ]
     mac_salt = bytes(b ^ 0x3A for b in salt)
     mac_key = hashlib.pbkdf2_hmac("sha512", enc_key, mac_salt, 2, dklen=KEY_SZ)
-    hmac_data = db_page1[SALT_SZ: PAGE_SZ - 80 + 16]
-    stored_hmac = db_page1[PAGE_SZ - 64: PAGE_SZ]
+    hmac_data = db_page1[SALT_SZ : PAGE_SZ - 80 + 16]
+    stored_hmac = db_page1[PAGE_SZ - 64 : PAGE_SZ]
     hm = hmac_mod.new(mac_key, hmac_data, hashlib.sha512)
     hm.update(struct.pack("<I", 1))
     return hm.digest() == stored_hmac
@@ -59,8 +58,9 @@ def collect_db_files(db_dir):
     return db_files, salt_to_dbs
 
 
-def scan_memory_for_keys(data, hex_re, db_files, salt_to_dbs, key_map,
-                         remaining_salts, base_addr, pid, print_fn):
+def scan_memory_for_keys(
+    data, hex_re, db_files, salt_to_dbs, key_map, remaining_salts, base_addr, pid, print_fn
+):
     """扫描一段内存数据，匹配 hex 模式并验证密钥。
 
     返回本次扫描匹配到的 hex 模式数量。
@@ -83,9 +83,8 @@ def scan_memory_for_keys(data, hex_re, db_files, salt_to_dbs, key_map,
                         remaining_salts.discard(salt_hex)
                         dbs = salt_to_dbs[salt_hex]
                         print_fn(f"\n  [FOUND] salt={salt_hex}")
-                        print_fn(f"    enc_key={enc_key_hex}")
-                        print_fn(f"    PID={pid} 地址: 0x{addr:016X}")
-                        print_fn(f"    数据库: {', '.join(dbs)}")
+                        print_fn(f"    PID={pid} address: 0x{addr:016X}")
+                        print_fn(f"    databases: {', '.join(dbs)}")
                         break
 
         elif hex_len == 64:
@@ -99,9 +98,8 @@ def scan_memory_for_keys(data, hex_re, db_files, salt_to_dbs, key_map,
                     remaining_salts.discard(salt_hex_db)
                     dbs = salt_to_dbs[salt_hex_db]
                     print_fn(f"\n  [FOUND] salt={salt_hex_db}")
-                    print_fn(f"    enc_key={enc_key_hex}")
-                    print_fn(f"    PID={pid} 地址: 0x{addr:016X}")
-                    print_fn(f"    数据库: {', '.join(dbs)}")
+                    print_fn(f"    PID={pid} address: 0x{addr:016X}")
+                    print_fn(f"    databases: {', '.join(dbs)}")
                     break
 
         elif hex_len > 96 and hex_len % 2 == 0:
@@ -115,9 +113,8 @@ def scan_memory_for_keys(data, hex_re, db_files, salt_to_dbs, key_map,
                         remaining_salts.discard(salt_hex)
                         dbs = salt_to_dbs[salt_hex]
                         print_fn(f"\n  [FOUND] salt={salt_hex} (long hex {hex_len})")
-                        print_fn(f"    enc_key={enc_key_hex}")
-                        print_fn(f"    PID={pid} 地址: 0x{addr:016X}")
-                        print_fn(f"    数据库: {', '.join(dbs)}")
+                        print_fn(f"    PID={pid} address: 0x{addr:016X}")
+                        print_fn(f"    databases: {', '.join(dbs)}")
                         break
 
     return matches
@@ -128,7 +125,7 @@ def cross_verify_keys(db_files, salt_to_dbs, key_map, print_fn):
     missing_salts = set(salt_to_dbs.keys()) - set(key_map.keys())
     if not missing_salts or not key_map:
         return
-    print_fn(f"\n还有 {len(missing_salts)} 个 salt 未匹配，尝试交叉验证...")
+    print_fn(f"\nCross-validating {len(missing_salts)} unmatched salts...")
     for salt_hex in list(missing_salts):
         for rel, path, sz, s, page1 in db_files:
             if s == salt_hex:
@@ -136,7 +133,7 @@ def cross_verify_keys(db_files, salt_to_dbs, key_map, print_fn):
                     enc_key = bytes.fromhex(known_key_hex)
                     if verify_enc_key(enc_key, page1):
                         key_map[salt_hex] = known_key_hex
-                        print_fn(f"  [CROSS] salt={salt_hex} 可用 key from salt={known_salt}")
+                        print_fn(f"  [CROSS] salt={salt_hex} matches key from salt={known_salt}")
                         missing_salts.discard(salt_hex)
                 break
 
@@ -158,7 +155,7 @@ def save_results(db_files, salt_to_dbs, key_map, output_path, print_fn):
         RuntimeError: 未提取到任何密钥
     """
     print_fn(f"\n{'=' * 60}")
-    print_fn(f"结果: {len(key_map)}/{len(salt_to_dbs)} salts 找到密钥")
+    print_fn(f"Found keys for {len(key_map)}/{len(salt_to_dbs)} salts")
 
     result = {}
     for rel, path, sz, salt_hex, page1 in db_files:
@@ -166,23 +163,23 @@ def save_results(db_files, salt_to_dbs, key_map, output_path, print_fn):
             result[rel] = {
                 "enc_key": key_map[salt_hex],
                 "salt": salt_hex,
-                "size_mb": round(sz / 1024 / 1024, 1)
+                "size_mb": round(sz / 1024 / 1024, 1),
             }
             print_fn(f"  OK: {rel} ({sz / 1024 / 1024:.1f}MB)")
         else:
             print_fn(f"  MISSING: {rel} (salt={salt_hex})")
 
     if not result:
-        print_fn(f"\n[!] 未提取到任何密钥")
-        raise RuntimeError("未能从任何微信进程中提取到密钥")
+        print_fn("\nError: No keys extracted.")
+        raise RuntimeError("Could not extract keys from any WeChat process")
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
-    print_fn(f"\n密钥保存到: {output_path}")
+    print_fn(f"\nKeys saved to: {output_path}")
 
     missing = [rel for rel, path, sz, salt_hex, page1 in db_files if salt_hex not in key_map]
     if missing:
-        print_fn(f"\n未找到密钥的数据库:")
+        print_fn("\nDatabases without keys:")
         for rel in missing:
             print_fn(f"  {rel}")
 

@@ -1,4 +1,4 @@
-"""Launch the official app with accessibility and without Conda library injection."""
+"""Start WeChat with accessibility enabled; sign in using the app window."""
 
 import os
 import signal
@@ -18,26 +18,22 @@ def start_wechat(executable, restart=False):
     if pids and not restart:
         report = AtspiDesktop(timeout=2).inspect()
         apps = report.get("wechat_apps", [])
-        if (
-            len(apps) == 1
-            and apps[0].get("pid") in pids
-            and apps[0].get("database_roots") == []
-        ):
+        if len(apps) == 1 and apps[0].get("pid") in pids and apps[0].get("database_roots") == []:
             return dict(
                 status="awaiting_login",
                 pids=pids,
                 atspi_ready=False,
-                message="微信已启动，请用户自行完成登录，然后运行 wecli doctor。",
+                message="WeChat is running. Sign in, then run wecli doctor.",
             )
         if report.get("status") != "ready":
             raise DesktopError(
-                "微信已运行，但未通过桌面检查。请运行 wecli doctor；如需重新启用辅助功能，先处理未完成操作，再运行 wecli launch --restart。"
+                "WeChat is running but desktop checks failed. Run wecli doctor. To enable accessibility again, finish pending work and run wecli launch --restart."
             )
         return dict(status="already_running", pids=pids, atspi_ready=True)
     if not executable.is_file() or not os.access(executable, os.X_OK):
-        raise DesktopError(f"微信程序不存在或不可执行: {executable}")
+        raise DesktopError(f"WeChat executable is missing or not executable: {executable}")
     if not os.environ.get("DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland":
-        raise DesktopError("请在本机 X11 图形会话中运行。")
+        raise DesktopError("Run this command in a local X11 desktop session.")
     if pids:
         for pid in pids:
             try:
@@ -47,13 +43,13 @@ def start_wechat(executable, restart=False):
         deadline = time.monotonic() + 10
         while wechat_processes():
             if time.monotonic() >= deadline:
-                raise DesktopError("微信未在 10 秒内退出，已停止；不会强制终止进程。")
+                raise DesktopError(
+                    "WeChat did not exit within 10 seconds. Stopped without forcibly killing it."
+                )
             time.sleep(0.2)
     log_path = Path.home() / ".wecli" / "wechat.log"
     log_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    fd = os.open(
-        log_path, os.O_CREAT | os.O_APPEND | os.O_WRONLY | os.O_NOFOLLOW, 0o600
-    )
+    fd = os.open(log_path, os.O_CREAT | os.O_APPEND | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, "ab") as log:
         process = subprocess.Popen(
             [str(executable)],
@@ -65,13 +61,13 @@ def start_wechat(executable, restart=False):
         )
     time.sleep(0.5)
     if process.poll() is not None:
-        raise DesktopError(f"微信启动后退出，请检查 {log_path}")
+        raise DesktopError(f"WeChat exited after launch. Check {log_path}")
     return dict(
         status="started",
         pid=process.pid,
         executable=str(executable),
         log=str(log_path),
-        message="请用户在微信窗口自行完成登录，然后运行 wecli doctor。",
+        message="Sign in using the WeChat window, then run wecli doctor.",
     )
 
 
@@ -83,18 +79,16 @@ def start_wechat(executable, restart=False):
     show_default=True,
 )
 @click.option(
-    "--restart", is_flag=True, help="关闭已有微信再启动；请先处理未完成的文件传输和编辑"
+    "--restart", is_flag=True, help="Restart WeChat; finish pending transfers and edits first"
 )
-@click.option("--format", "fmt", type=click.Choice(["json", "text"]), default="json")
+@click.option("--format", "fmt", type=click.Choice(["json", "text"]), default="text")
 def launch(executable, restart, fmt):
-    """带辅助功能参数启动官方微信；默认复用已有微信，登录由用户自行完成。"""
+    """Start WeChat with accessibility enabled; sign in using the app window."""
     try:
         result = start_wechat(executable.expanduser().absolute(), restart)
     except (OSError, DesktopError) as exc:
         raise click.ClickException(str(exc)) from exc
     output(
-        result
-        if fmt == "json"
-        else result["status"] + "\n" + result.get("message", ""),
+        result,
         fmt,
     )

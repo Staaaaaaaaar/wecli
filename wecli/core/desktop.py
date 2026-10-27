@@ -24,7 +24,7 @@ class AtspiDesktop:
             or os.environ.get("XDG_SESSION_TYPE") == "wayland"
             or not os.environ.get("DISPLAY")
         ):
-            raise DesktopError("发送仅支持 Linux X11 图形会话。")
+            raise DesktopError("Sending requires a Linux X11 desktop session.")
         try:
             tool = desktop_tool("xdotool")
         except RuntimeErrorDetail as exc:
@@ -72,20 +72,18 @@ class AtspiDesktop:
             return dict(
                 status="not_ready" if probing else "unknown",
                 ui_confirmed=False,
-                error="桌面检查超时。"
+                error="Desktop inspection timed out."
                 if probing
-                else "桌面操作超时，结果未知；先检查聊天记录，不要直接重发。",
+                else "Desktop operation timed out; outcome unknown. Check chat history before resending.",
             )
         except OSError as exc:
             raise DesktopError(
-                f"无法启动当前环境的 Python: {sys.executable}。"
+                f"Cannot start Python from the active environment: {sys.executable}。"
             ) from exc
         try:
             response = json.loads(result.stdout)
             allowed = (
-                ("ready", "not_ready", "failed")
-                if probing
-                else ("submitted", "unknown", "failed")
+                ("ready", "not_ready", "failed") if probing else ("submitted", "unknown", "failed")
             )
             if not isinstance(response, dict) or response.get("status") not in allowed:
                 raise ValueError("invalid response")
@@ -94,10 +92,10 @@ class AtspiDesktop:
             return dict(
                 status="not_ready" if probing else "unknown",
                 ui_confirmed=False,
-                error="AT-SPI 检查进程异常退出；请确认桌面 D-Bus 可访问。"
+                error="AT-SPI inspection exited unexpectedly. Check desktop D-Bus access."
                 if probing
-                else "AT-SPI 进程异常退出，结果未知；检查桌面依赖和聊天记录，不要直接重发。",
+                else "AT-SPI exited unexpectedly; outcome unknown. Check desktop dependencies and chat history before resending.",
             )
         if response["status"] == "failed" and not probing:
-            raise DesktopError(response.get("error", "AT-SPI 操作失败。"))
+            raise DesktopError(response.get("error", "AT-SPI operation failed."))
         return response

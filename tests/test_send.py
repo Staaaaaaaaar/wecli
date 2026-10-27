@@ -49,20 +49,25 @@ class SendTests(unittest.TestCase):
         self.app.assert_not_called()
 
     def test_preview_no_desktop_or_record_scan(self):
-        result = self.runner.invoke(cli, ["send", "测试", "你好\n第二行", "--dry-run"])
+        result = self.runner.invoke(
+            cli, ["send", "测试", "你好\n第二行", "--dry-run", "--format", "json"]
+        )
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(json.loads(result.output)["status"], "dry_run")
         self.desktop.assert_not_called()
         self.receipt.assert_not_called()
 
     def test_cancel_and_eof_never_operate_desktop(self):
-        for answer in ("n\n", ""):
-            result = self.runner.invoke(cli, ["send", "测试", "hello"], input=answer)
-            self.assertNotEqual(result.exit_code, 0)
+        with patch("wecli.commands.send.sys") as terminal:
+            terminal.stdin.isatty.return_value = True
+            for answer in ("n\n", ""):
+                result = self.runner.invoke(cli, ["send", "测试", "hello"], input=answer)
+                self.assertNotEqual(result.exit_code, 0)
+                self.assertIn("Allow wecli", result.stderr)
         self.desktop.assert_not_called()
 
     def test_yes_has_machine_readable_record_receipt(self):
-        result = self.runner.invoke(cli, ["send", "测试", "你好", "--yes"])
+        result = self.runner.invoke(cli, ["send", "测试", "你好", "--yes", "--format", "json"])
         self.assertEqual(result.exit_code, 0, result.output)
         data = json.loads(result.output)
         self.assertEqual(data["status"], "recorded")
@@ -73,7 +78,7 @@ class SendTests(unittest.TestCase):
 
     def test_ui_only_is_submitted_not_recorded(self):
         self.receipt.return_value.wait.return_value = None
-        result = self.runner.invoke(cli, ["send", "测试", "hello", "-y"])
+        result = self.runner.invoke(cli, ["send", "测试", "hello", "-y", "--format", "json"])
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(json.loads(result.output)["status"], "submitted")
 
@@ -82,7 +87,7 @@ class SendTests(unittest.TestCase):
             status="unknown", ui_confirmed=False, error="timeout"
         )
         self.receipt.return_value.wait.return_value = None
-        result = self.runner.invoke(cli, ["send", "测试", "hello", "-y"])
+        result = self.runner.invoke(cli, ["send", "测试", "hello", "-y", "--format", "json"])
         self.assertEqual(result.exit_code, 3, result.output)
         self.assertEqual(json.loads(result.output)["status"], "unknown")
         self.desktop.return_value.send_text.assert_called_once()
@@ -91,14 +96,14 @@ class SendTests(unittest.TestCase):
         self.desktop.return_value.send_text.return_value = dict(
             status="unknown", ui_confirmed=False, error="timeout"
         )
-        result = self.runner.invoke(cli, ["send", "测试", "hello", "-y"])
+        result = self.runner.invoke(cli, ["send", "测试", "hello", "-y", "--format", "json"])
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(json.loads(result.output)["status"], "recorded")
         self.assertNotIn("error", json.loads(result.output))
 
     def test_desktop_failure_does_not_poll_or_retry(self):
         self.desktop.return_value.send_text.side_effect = DesktopError("已有草稿")
-        result = self.runner.invoke(cli, ["send", "测试", "hello", "-y"])
+        result = self.runner.invoke(cli, ["send", "测试", "hello", "-y", "--format", "json"])
         self.assertEqual(result.exit_code, 1)
         self.receipt.return_value.wait.assert_not_called()
 
@@ -107,14 +112,16 @@ class SendTests(unittest.TestCase):
             path = Path(directory) / "text.txt"
             path.write_bytes("你好\r\n第二行".encode())
             result = self.runner.invoke(
-                cli, ["send", "filehelper", "--file", str(path), "--dry-run"]
+                cli, ["send", "filehelper", "--file", str(path), "--dry-run", "--format", "json"]
             )
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(json.loads(result.output)["message"], "你好\n第二行")
 
     def test_stdin_supports_noninteractive_yes(self):
         result = self.runner.invoke(
-            cli, ["send", "filehelper", "--file", "-", "-y"], input="你好\n第二行"
+            cli,
+            ["send", "filehelper", "--file", "-", "-y", "--format", "json"],
+            input="你好\n第二行",
         )
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(json.loads(result.output)["message"], "你好\n第二行")
@@ -122,22 +129,20 @@ class SendTests(unittest.TestCase):
 
 class RecipientTests(unittest.TestCase):
     def test_exact_only_and_unique_names(self):
-        with self.assertRaisesRegex(SendError, "精确匹配"):
+        with self.assertRaisesRegex(SendError, "exact contact match"):
             resolve_recipient("测", [CONTACT])
         contacts = [CONTACT, dict(CONTACT, username="wxid_other")]
-        with self.assertRaisesRegex(SendError, "重名"):
+        with self.assertRaisesRegex(SendError, "Ambiguous"):
             resolve_recipient("测试", contacts)
-        with self.assertRaisesRegex(SendError, "界面名称重名"):
+        with self.assertRaisesRegex(SendError, "Ambiguous UI name"):
             resolve_recipient("wxid_test", contacts)
 
     def test_unique_remark_disambiguates(self):
         contacts = [dict(CONTACT, remark="同事A"), dict(CONTACT, username="wxid_other")]
-        self.assertEqual(
-            resolve_recipient("wxid_test", contacts)["ui_names"], ["同事A"]
-        )
+        self.assertEqual(resolve_recipient("wxid_test", contacts)["ui_names"], ["同事A"])
 
     def test_filehelper_display_name_collision_rejected(self):
-        with self.assertRaisesRegex(SendError, "其他联系人"):
+        with self.assertRaisesRegex(SendError, "Another contact"):
             resolve_recipient("filehelper", [dict(CONTACT, nick_name="File Transfer")])
 
     def test_filehelper_aliases(self):
@@ -148,9 +153,7 @@ class RecipientTests(unittest.TestCase):
 class TransportTests(unittest.TestCase):
     @patch.dict("os.environ", {"DISPLAY": ":1", "XDG_SESSION_TYPE": "x11"})
     @patch("wecli.core.desktop.desktop_tool", return_value="/env/bin/xdotool")
-    def test_unicode_payload_uses_current_isolated_python_and_environment_tool(
-        self, which
-    ):
+    def test_unicode_payload_uses_current_isolated_python_and_environment_tool(self, which):
         with patch(
             "wecli.core.desktop.subprocess.run",
             return_value=subprocess.CompletedProcess(
@@ -229,7 +232,7 @@ class SubmissionTests(unittest.TestCase):
 
     def test_existing_draft_not_overwritten(self):
         adapter, field = self.make_adapter("existing")
-        with self.assertRaisesRegex(AdapterError, "草稿"):
+        with self.assertRaisesRegex(AdapterError, "draft"):
             adapter.submit()
         field.set_text_contents.assert_not_called()
         self.assertFalse(adapter.attempted)
@@ -238,7 +241,7 @@ class SubmissionTests(unittest.TestCase):
         adapter, field = self.make_adapter()
         adapter.current_input.side_effect = [field, None]
         adapter.click = lambda button, before_click: before_click()
-        with self.assertRaisesRegex(AdapterError, "收件人"):
+        with self.assertRaisesRegex(AdapterError, "Recipient"):
             adapter.submit()
         self.assertFalse(adapter.attempted)
 
@@ -246,7 +249,7 @@ class SubmissionTests(unittest.TestCase):
         adapter, field = self.make_adapter()
         field.get_text.return_value = "wrong"
         adapter.click = MagicMock()
-        with self.assertRaisesRegex(AdapterError, "回读"):
+        with self.assertRaisesRegex(AdapterError, "readback"):
             adapter.submit()
         adapter.click.assert_not_called()
 
@@ -273,9 +276,7 @@ class ReceiptTests(unittest.TestCase):
         self.conn = sqlite3.connect(self.path)
         self.addCleanup(self.conn.close)
         self.conn.execute("CREATE TABLE Name2Id(user_name TEXT)")
-        self.conn.executemany(
-            "INSERT INTO Name2Id VALUES (?)", [("wxid_self",), ("filehelper",)]
-        )
+        self.conn.executemany("INSERT INTO Name2Id VALUES (?)", [("wxid_self",), ("filehelper",)])
         self.conn.execute(
             f"CREATE TABLE [{self.table}] (local_id INTEGER, local_type INTEGER, create_time INTEGER, real_sender_id INTEGER, message_content TEXT, WCDB_CT_message_content INTEGER)"
         )
@@ -286,9 +287,7 @@ class ReceiptTests(unittest.TestCase):
             msg_db_keys=["message/message_0.db"],
         )
         self.app.cache.get.return_value = str(self.path)
-        self.self_patch = patch(
-            "wecli.core.sending.get_self_username", return_value="wxid_self"
-        )
+        self.self_patch = patch("wecli.core.sending.get_self_username", return_value="wxid_self")
         self.self_patch.start()
         self.addCleanup(self.self_patch.stop)
 

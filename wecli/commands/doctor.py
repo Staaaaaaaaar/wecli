@@ -1,4 +1,4 @@
-"""Read-only desktop runtime diagnostics; no database keys required."""
+"""Check Python, AT-SPI, xdotool, and WeChat readiness without sending."""
 
 import sys
 
@@ -6,14 +6,14 @@ import click
 
 from ..core.desktop import AtspiDesktop, DesktopError
 from ..core.runtime import in_conda
-from ..output.formatter import output
+from ..output.formatter import output, readable
 
 
 @click.command("doctor")
-@click.option("--format", "fmt", type=click.Choice(["json", "text"]), default="json")
+@click.option("--format", "fmt", type=click.Choice(["json", "text"]), default="text")
 @click.pass_context
 def doctor(ctx, fmt):
-    """检查当前 Python、AT-SPI、xdotool 和微信状态，不发送消息。"""
+    """Check Python, AT-SPI, xdotool, and WeChat readiness without sending."""
     try:
         result = AtspiDesktop(timeout=3).inspect()
     except DesktopError as exc:
@@ -26,21 +26,15 @@ def doctor(ctx, fmt):
         result["ready"] = False
         result["status"] = "not_ready"
         result.setdefault(
-            "error", "桌面依赖未完整来自当前 Conda 环境，请按 environment.yml 更新。"
+            "error",
+            "Desktop dependencies are not all from the active Conda environment. Update it using environment.yml.",
         )
     if fmt == "json":
-        output(result)
+        output(result, "json")
     else:
-        lines = [
-            f"状态: {result['status']}",
-            f"Python: {result['python']}",
-            f"环境: {result['prefix']}",
-        ]
-        for key in ("gi_path", "xdotool", "dependencies_in_prefix"):
-            if key in result:
-                lines.append(f"{key}: {result[key]}")
+        details = {key: value for key, value in result.items() if key != "error"}
+        output(readable(details))
         if result.get("error"):
-            lines.append(result["error"])
-        output("\n".join(lines), "text")
+            click.echo(f"Error: {result['error']}", err=True)
     if not result["ready"]:
         ctx.exit(1)

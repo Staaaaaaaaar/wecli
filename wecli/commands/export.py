@@ -3,10 +3,11 @@
 # Modified and maintained for wecli by Staaaaaaaaar, 2026.
 # Changes include project adaptation and/or source formatting; see docs/provenance.md.
 
-"""export 命令 — 导出聊天记录为 markdown 或 txt"""
+"""Export chat history as Markdown or plain text."""
+
+from datetime import datetime
 
 import click
-from datetime import datetime
 
 from ..core.contacts import get_contact_names
 from ..core.messages import (
@@ -20,74 +21,87 @@ from ..output.formatter import output
 
 @click.command("export")
 @click.argument("chat_name")
-@click.option("--format", "fmt", default="markdown", type=click.Choice(["markdown", "txt"]), help="导出格式")
-@click.option("--output", "output_path", default=None, help="输出文件路径（默认输出到 stdout）")
-@click.option("--start-time", default="", help="起始时间 YYYY-MM-DD [HH:MM[:SS]]")
-@click.option("--end-time", default="", help="结束时间 YYYY-MM-DD [HH:MM[:SS]]")
-@click.option("--limit", default=500, help="导出消息数量")
+@click.option(
+    "--format",
+    "fmt",
+    default="markdown",
+    type=click.Choice(["markdown", "txt"]),
+    help="Export format",
+)
+@click.option("--output", "output_path", default=None, help="Output file (defaults to stdout)")
+@click.option("--start-time", default="", help="Start time: YYYY-MM-DD [HH:MM[:SS]]")
+@click.option("--end-time", default="", help="End time: YYYY-MM-DD [HH:MM[:SS]]")
+@click.option(
+    "--limit",
+    default=500,
+    type=click.IntRange(min=1),
+    show_default=True,
+    help="Maximum number of messages to export",
+)
 @click.pass_context
 def export(ctx, chat_name, fmt, output_path, start_time, end_time, limit):
-    """导出聊天记录为 markdown 或纯文本
-
-    \b
-    示例:
-      wecli export "张三" --format markdown
-      wecli export "AI交流群" --format txt --output chat.txt
-      wecli export "张三" --start-time "2026-04-01" --limit 1000
-    """
+    """Export chat history as Markdown or plain text."""
     app = ctx.obj
 
     try:
         validate_pagination(limit, 0, limit_max=None)
         start_ts, end_ts = parse_time_range(start_time, end_time)
     except ValueError as e:
-        click.echo(f"错误: {e}", err=True)
+        click.echo(f"Error: {e}", err=True)
         ctx.exit(2)
 
     chat_ctx = resolve_chat_context(chat_name, app.msg_db_keys, app.cache, app.decrypted_dir)
     if not chat_ctx:
-        click.echo(f"找不到聊天对象: {chat_name}", err=True)
-        ctx.exit(1)
-    if not chat_ctx['db_path']:
-        click.echo(f"找不到 {chat_ctx['display_name']} 的消息记录", err=True)
-        ctx.exit(1)
+        raise click.ClickException(f"Chat not found: {chat_name}")
+    if not chat_ctx["db_path"]:
+        raise click.ClickException(f"No message history found for {chat_ctx['display_name']}")
 
     names = get_contact_names(app.cache, app.decrypted_dir)
     lines, failures = collect_chat_history(
-        chat_ctx, names, app.display_name_fn,
-        start_ts=start_ts, end_ts=end_ts, limit=limit, offset=0,
+        chat_ctx,
+        names,
+        app.display_name_fn,
+        start_ts=start_ts,
+        end_ts=end_ts,
+        limit=limit,
+        offset=0,
     )
 
+    if failures:
+        click.echo("Warning: Some message queries failed: " + "; ".join(failures), err=True)
+        if not lines:
+            raise click.ClickException("No messages could be exported because queries failed.")
+
     if not lines:
-        click.echo(f"{chat_ctx['display_name']} 无消息记录", err=True)
+        click.echo(f"No messages found for {chat_ctx['display_name']}", err=True)
         ctx.exit(0)
 
-    now = datetime.now().strftime('%Y-%m-%d %H:%M')
-    chat_type = "群聊" if chat_ctx['is_group'] else "私聊"
-    time_range = f"{start_time or '最早'} ~ {end_time or '最新'}"
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    chat_type = "Group" if chat_ctx["is_group"] else "Direct"
+    time_range = f"{start_time or 'earliest'} ~ {end_time or 'latest'}"
 
-    if fmt == 'markdown':
-        content = _format_markdown(chat_ctx['display_name'], chat_type, time_range, now, lines)
+    if fmt == "markdown":
+        content = _format_markdown(chat_ctx["display_name"], chat_type, time_range, now, lines)
     else:
-        content = _format_txt(chat_ctx['display_name'], chat_type, time_range, now, lines)
+        content = _format_txt(chat_ctx["display_name"], chat_type, time_range, now, lines)
 
-    if output_path:
-        with open(output_path, 'w', encoding='utf-8') as f:
+    if output_path and output_path != "-":
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(content)
-            if not content.endswith('\n'):
-                f.write('\n')
-        click.echo(f"已导出到: {output_path}（{len(lines)} 条消息）", err=True)
+            if not content.endswith("\n"):
+                f.write("\n")
+        click.echo(f"Exported {len(lines)} messages to: {output_path}", err=True)
     else:
-        output(content, 'text')
+        output(content, "text")
 
 
 def _format_markdown(display_name, chat_type, time_range, export_time, lines):
     header = (
-        f"# 聊天记录: {display_name}\n\n"
-        f"**时间范围:** {time_range}\n\n"
-        f"**导出时间:** {export_time}\n\n"
-        f"**消息数量:** {len(lines)}\n\n"
-        f"**类型:** {chat_type}\n\n---\n"
+        f"# Chat history: {display_name}\n\n"
+        f"**Time range:** {time_range}\n\n"
+        f"**Exported at:** {export_time}\n\n"
+        f"**Messages:** {len(lines)}\n\n"
+        f"**Type:** {chat_type}\n\n---\n"
     )
     body = "\n".join(f"- {line}" for line in lines)
     return header + body
@@ -95,11 +109,11 @@ def _format_markdown(display_name, chat_type, time_range, export_time, lines):
 
 def _format_txt(display_name, chat_type, time_range, export_time, lines):
     header = (
-        f"聊天记录: {display_name}\n"
-        f"类型: {chat_type}\n"
-        f"时间范围: {time_range}\n"
-        f"导出时间: {export_time}\n"
-        f"消息数量: {len(lines)}\n"
+        f"Chat history: {display_name}\n"
+        f"Type: {chat_type}\n"
+        f"Time range: {time_range}\n"
+        f"Exported at: {export_time}\n"
+        f"Messages: {len(lines)}\n"
         f"{'=' * 60}"
     )
     body = "\n".join(lines)

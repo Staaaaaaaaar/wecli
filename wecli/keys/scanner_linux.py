@@ -8,10 +8,9 @@
 import functools
 import os
 import re
-import sys
 import time
 
-from .common import collect_db_files, scan_memory_for_keys, cross_verify_keys, save_results
+from .common import collect_db_files, cross_verify_keys, save_results, scan_memory_for_keys
 
 print = functools.partial(print, flush=True)
 
@@ -63,7 +62,7 @@ def _get_pids():
             continue
 
     if not pids:
-        raise RuntimeError("未检测到 Linux 微信进程")
+        raise RuntimeError("No Linux WeChat process detected")
 
     pids.sort(key=lambda item: item[1], reverse=True)
     for pid, rss_kb in pids:
@@ -91,10 +90,12 @@ def _get_readable_regions(pid):
                 if mapping_name in _SKIP_MAPPINGS:
                     continue
                 mapping_lower = mapping_name.lower()
-                if (any(mapping_name.startswith(p) for p in _SKIP_PATH_PREFIXES)
-                        and "wcdb" not in mapping_lower
-                        and "wechat" not in mapping_lower
-                        and "weixin" not in mapping_lower):
+                if (
+                    any(mapping_name.startswith(p) for p in _SKIP_PATH_PREFIXES)
+                    and "wcdb" not in mapping_lower
+                    and "wechat" not in mapping_lower
+                    and "weixin" not in mapping_lower
+                ):
                     continue
             start_s, end_s = parts[0].split("-")
             start = int(start_s, 16)
@@ -120,8 +121,8 @@ def _check_permissions():
     except (OSError, ValueError):
         pass
     raise PermissionError(
-        "需要 root 权限或 CAP_SYS_PTRACE 才能读取进程内存\n"
-        "请运行 wecli init，由初始化流程请求 sudo 授权"
+        "Reading process memory requires root or CAP_SYS_PTRACE.\n"
+        "Run wecli init to request sudo for key scanning."
     )
 
 
@@ -139,14 +140,14 @@ def extract_keys(db_dir, output_path, pid=None):
     _check_permissions()
 
     print("=" * 60)
-    print("  提取 Linux 微信数据库密钥（内存扫描）")
+    print("  Extracting Linux WeChat database keys (memory scan)")
     print("=" * 60)
 
     db_files, salt_to_dbs = collect_db_files(db_dir)
     if not db_files:
-        raise RuntimeError(f"在 {db_dir} 未找到可解密的 .db 文件")
+        raise RuntimeError(f"No decryptable .db files found in {db_dir}")
 
-    print(f"\n找到 {len(db_files)} 个数据库, {len(salt_to_dbs)} 个不同的 salt")
+    print(f"\nFound {len(db_files)} databases and {len(salt_to_dbs)} distinct salts")
     for salt_hex, dbs in sorted(salt_to_dbs.items(), key=lambda x: len(x[1]), reverse=True):
         print(f"  salt {salt_hex}: {', '.join(dbs)}")
 
@@ -162,28 +163,28 @@ def extract_keys(db_dir, output_path, pid=None):
         try:
             regions = _get_readable_regions(pid_val)
         except PermissionError:
-            print(f"[WARN] 无法读取 /proc/{pid_val}/maps，权限不足，跳过")
+            print(f"[WARN] Cannot read /proc/{pid_val}/maps: permission denied; skipping")
             continue
         except (FileNotFoundError, ProcessLookupError):
-            print(f"[WARN] PID {pid_val} 已退出，跳过")
+            print(f"[WARN] PID {pid_val} exited; skipping")
             continue
 
         total_bytes = sum(s for _, s in regions)
         total_mb = total_bytes / 1024 / 1024
-        print(f"\n[*] 扫描 PID={pid_val} ({total_mb:.0f}MB, {len(regions)} 区域)")
+        print(f"\n[*] Scanning PID={pid_val} ({total_mb:.0f} MB, {len(regions)} regions)")
 
         scanned_bytes = 0
         try:
             mem = open(f"/proc/{pid_val}/mem", "rb")
         except PermissionError:
-            print(f"[WARN] 无法打开 /proc/{pid_val}/mem，权限不足，跳过")
+            print(f"[WARN] Cannot open /proc/{pid_val}/mem: permission denied; skipping")
             continue
         except (FileNotFoundError, ProcessLookupError):
-            print(f"[WARN] PID {pid_val} 已退出，跳过")
+            print(f"[WARN] PID {pid_val} exited; skipping")
             continue
 
         if not _is_wechat_process(pid_val):
-            print(f"[WARN] PID {pid_val} 已不是微信进程，跳过")
+            print(f"[WARN] PID {pid_val} is no longer a WeChat process; skipping")
             mem.close()
             continue
 
@@ -197,8 +198,15 @@ def extract_keys(db_dir, output_path, pid=None):
                 scanned_bytes += len(data)
 
                 all_hex_matches += scan_memory_for_keys(
-                    data, hex_re, db_files, salt_to_dbs,
-                    key_map, remaining_salts, base, pid_val, print,
+                    data,
+                    hex_re,
+                    db_files,
+                    salt_to_dbs,
+                    key_map,
+                    remaining_salts,
+                    base,
+                    pid_val,
+                    print,
                 )
 
                 if (reg_idx + 1) % 200 == 0:
@@ -212,11 +220,11 @@ def extract_keys(db_dir, output_path, pid=None):
             mem.close()
 
         if not remaining_salts:
-            print(f"\n[+] 所有密钥已找到，跳过剩余进程")
+            print("\n[+] All keys found; skipping remaining processes")
             break
 
     elapsed = time.time() - t0
-    print(f"\n扫描完成: {elapsed:.1f}s, {len(pids)} 个进程, {all_hex_matches} hex 模式")
+    print(f"\nScan complete: {elapsed:.1f}s, {len(pids)} processes, {all_hex_matches} hex matches")
 
     cross_verify_keys(db_files, salt_to_dbs, key_map, print)
     return save_results(db_files, salt_to_dbs, key_map, output_path, print)

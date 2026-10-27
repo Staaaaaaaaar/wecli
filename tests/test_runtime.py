@@ -39,9 +39,7 @@ class RuntimeTests(unittest.TestCase):
             (Path(directory) / "conda-meta").mkdir()
             with (
                 patch("wecli.core.runtime.sys.prefix", directory),
-                patch(
-                    "wecli.core.runtime.shutil.which", return_value="/usr/bin/xdotool"
-                ) as which,
+                patch("wecli.core.runtime.shutil.which", return_value="/usr/bin/xdotool") as which,
             ):
                 with self.assertRaises(RuntimeErrorDetail):
                     desktop_tool("xdotool")
@@ -58,7 +56,9 @@ class RuntimeTests(unittest.TestCase):
             external.chmod(0o700)
             (prefix / "bin/xdotool").symlink_to(external)
             with patch("wecli.core.runtime.sys.prefix", str(prefix)):
-                with self.assertRaisesRegex(RuntimeErrorDetail, "环境以外"):
+                with self.assertRaisesRegex(
+                    RuntimeErrorDetail, "outside the active Conda environment"
+                ):
                     desktop_tool("xdotool")
 
     def test_worker_uses_own_typelibs_and_keeps_desktop_bus(self):
@@ -76,9 +76,7 @@ class RuntimeTests(unittest.TestCase):
             ),
         ):
             result = worker_environment()
-            self.assertEqual(
-                result["GI_TYPELIB_PATH"], "/env/wecli/lib/girepository-1.0"
-            )
+            self.assertEqual(result["GI_TYPELIB_PATH"], "/env/wecli/lib/girepository-1.0")
             self.assertNotIn("LD_LIBRARY_PATH", result)
             self.assertEqual(result["DBUS_SESSION_BUS_ADDRESS"], "bus")
             self.assertEqual(result["DISPLAY"], ":1")
@@ -144,7 +142,7 @@ class SetupCommandTests(unittest.TestCase):
             desktop.return_value.inspect.return_value = dict(
                 status="ready", dependencies_in_prefix=False
             )
-            result = CliRunner().invoke(cli, ["doctor"])
+            result = CliRunner().invoke(cli, ["doctor", "--format", "json"])
             self.assertEqual(result.exit_code, 1, result.output)
             self.assertFalse(json.loads(result.output)["ready"])
 
@@ -153,10 +151,8 @@ class SetupCommandTests(unittest.TestCase):
             patch("wecli.commands.doctor.AtspiDesktop") as desktop,
             patch("wecli.main.AppContext") as app,
         ):
-            desktop.return_value.inspect.return_value = dict(
-                status="not_ready", error="no desktop"
-            )
-            result = CliRunner().invoke(cli, ["doctor"])
+            desktop.return_value.inspect.return_value = dict(status="not_ready", error="no desktop")
+            result = CliRunner().invoke(cli, ["doctor", "--format", "json"])
             self.assertEqual(result.exit_code, 1)
             app.assert_not_called()
 
@@ -168,9 +164,7 @@ class SetupCommandTests(unittest.TestCase):
             patch("wecli.commands.launch.os.kill") as kill,
         ):
             desktop.return_value.inspect.return_value = dict(status="ready")
-            self.assertEqual(
-                start_wechat(Path("/usr/bin/wechat"))["status"], "already_running"
-            )
+            self.assertEqual(start_wechat(Path("/usr/bin/wechat"))["status"], "already_running")
             popen.assert_not_called()
             kill.assert_not_called()
 
@@ -229,9 +223,7 @@ class SetupCommandTests(unittest.TestCase):
                 env = popen.call_args.kwargs["env"]
                 self.assertNotIn("LD_LIBRARY_PATH", env)
                 self.assertEqual(env["QT_LINUX_ACCESSIBILITY_ALWAYS_ON"], "1")
-                self.assertEqual(
-                    (root / ".wecli/wechat.log").stat().st_mode & 0o777, 0o600
-                )
+                self.assertEqual((root / ".wecli/wechat.log").stat().st_mode & 0o777, 0o600)
 
     def test_restart_timeout_never_kills_forcefully_or_starts_second_instance(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -245,7 +237,7 @@ class SetupCommandTests(unittest.TestCase):
                 patch("wecli.commands.launch.time.monotonic", side_effect=[0, 11]),
                 patch("wecli.commands.launch.subprocess.Popen") as popen,
             ):
-                with self.assertRaisesRegex(DesktopError, "不会强制"):
+                with self.assertRaisesRegex(DesktopError, "without forcibly killing"):
                     start_wechat(exe, restart=True)
                 import signal
 

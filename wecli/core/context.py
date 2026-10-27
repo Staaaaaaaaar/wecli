@@ -9,7 +9,7 @@ import atexit
 import json
 import os
 
-from .config import load_config, STATE_DIR
+from .config import STATE_DIR, load_config
 from .db_cache import DBCache
 from .key_utils import strip_key_metadata
 from .messages import find_msg_db_keys
@@ -25,10 +25,7 @@ class AppContext:
         self.keys_file = self.cfg["keys_file"]
 
         if not os.path.exists(self.keys_file):
-            raise FileNotFoundError(
-                f"密钥文件不存在: {self.keys_file}\n"
-                "请运行: wecli init"
-            )
+            raise FileNotFoundError(f"Key file does not exist: {self.keys_file}\nRun: wecli init")
 
         with open(self.keys_file, encoding="utf-8") as f:
             self.all_keys = strip_key_metadata(json.load(f))
@@ -43,4 +40,7 @@ class AppContext:
 
     def display_name_fn(self, username, names):
         from .contacts import display_name_for_username
-        return display_name_for_username(username, names, self.db_dir, self.cache, self.decrypted_dir)
+
+        return display_name_for_username(
+            username, names, self.db_dir, self.cache, self.decrypted_dir
+        )

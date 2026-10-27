@@ -10,7 +10,7 @@ import json
 import os
 import tempfile
 
-from .crypto import full_decrypt, decrypt_wal
+from .crypto import decrypt_wal, full_decrypt
 from .key_utils import get_key_info
 
 
@@ -41,7 +41,7 @@ class DBCache:
             tmp_path = info["path"]
             if not os.path.exists(tmp_path):
                 continue
-            rel_path = rel_key.replace('\\', os.sep)
+            rel_path = rel_key.replace("\\", os.sep)
             db_path = os.path.join(self._db_dir, rel_path)
             wal_path = db_path + "-wal"
             try:
@@ -57,7 +57,7 @@ class DBCache:
         for rel_key, (db_mt, wal_mt, path) in self._cache.items():
             data[rel_key] = {"db_mt": db_mt, "wal_mt": wal_mt, "path": path}
         try:
-            with open(self.MTIME_FILE, 'w', encoding="utf-8") as f:
+            with open(self.MTIME_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f)
         except OSError:
             pass
@@ -66,7 +66,7 @@ class DBCache:
         key_info = get_key_info(self._all_keys, rel_key)
         if not key_info:
             return None
-        rel_path = rel_key.replace('\\', '/').replace('/', os.sep)
+        rel_path = rel_key.replace("\\", "/").replace("/", os.sep)
         db_path = os.path.join(self._db_dir, rel_path)
         wal_path = db_path + "-wal"
         if not os.path.exists(db_path):

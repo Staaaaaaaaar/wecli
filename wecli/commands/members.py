@@ -3,55 +3,57 @@
 # Modified and maintained for wecli by Staaaaaaaaar, 2026.
 # Changes include project adaptation and/or source formatting; see docs/provenance.md.
 
-"""members 命令 — 查询群聊成员列表"""
+"""List members of a group chat."""
 
 import click
 
-from ..core.contacts import get_contact_names, resolve_username, get_group_members
+from ..core.contacts import get_contact_names, get_group_members, resolve_username
 from ..output.formatter import output
 
 
 @click.command("members")
 @click.argument("group_name")
-@click.option("--format", "fmt", default="json", type=click.Choice(["json", "text"]), help="输出格式")
+@click.option(
+    "--format", "fmt", default="text", type=click.Choice(["json", "text"]), help="Output format"
+)
 @click.pass_context
 def members(ctx, group_name, fmt):
-    """查询群聊成员列表
-
-    \b
-    示例:
-      wecli members "AI交流群"
-      wecli members "群名" --format text
-    """
+    """List members of a group chat."""
     app = ctx.obj
 
     username = resolve_username(group_name, app.cache, app.decrypted_dir)
     if not username:
-        click.echo(f"找不到: {group_name}", err=True)
-        ctx.exit(1)
+        raise click.ClickException(f"Not found: {group_name}")
 
-    if '@chatroom' not in username:
-        click.echo(f"{group_name} 不是一个群聊", err=True)
-        ctx.exit(1)
+    if "@chatroom" not in username:
+        raise click.ClickException(f"{group_name} is not a group chat")
 
     names = get_contact_names(app.cache, app.decrypted_dir)
     display_name = names.get(username, username)
 
     result = get_group_members(username, app.cache, app.decrypted_dir)
 
-    if fmt == 'json':
-        output({
-            'group': display_name,
-            'username': username,
-            'member_count': len(result['members']),
-            'owner': result['owner'],
-            'members': result['members'],
-        }, 'json')
+    if fmt == "json":
+        output(
+            {
+                "group": display_name,
+                "username": username,
+                "member_count": len(result["members"]),
+                "owner": result["owner"],
+                "members": result["members"],
+            },
+            "json",
+        )
     else:
-        lines = [f"{m['display_name']}  ({m['username']})"]
-        if m['remark']:
-            lines[-1] += f"  备注: {m['remark']}"
-        header = f"{display_name} 的群成员（共 {len(result['members'])} 人）"
-        if result['owner']:
-            header += f"，群主: {result['owner']}"
-        output(header + ":\n\n" + "\n".join(lines), 'text')
+        lines = []
+        for member in result["members"]:
+            line = f"{member['display_name']}  ({member['username']})"
+            if member["remark"]:
+                line += f"  Remark: {member['remark']}"
+            lines.append(line)
+        if not lines:
+            lines.append("No members found.")
+        header = f"Members of {display_name} ({len(result['members'])})"
+        if result["owner"]:
+            header += f", owner: {result['owner']}"
+        output(header + ":\n\n" + "\n".join(lines), "text")

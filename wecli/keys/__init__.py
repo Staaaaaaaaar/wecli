@@ -23,6 +23,7 @@ def extract_keys(db_dir, output_path, pid=None):
         RuntimeError: 提取失败
     """
     if platform.system() != "Linux":
-        raise RuntimeError("wecli 仅支持 Linux")
+        raise RuntimeError("wecli supports Linux only")
     from .scanner_linux import extract_keys as _extract
+
     return _extract(db_dir, output_path, pid=pid)

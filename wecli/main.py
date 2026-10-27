@@ -5,60 +5,75 @@
 
 """wecli 入口"""
 
-import sys
-
 import click
 
+from . import __version__ as _VERSION
 from .core.context import AppContext
 
-_VERSION = "0.1.0"
+
+class CommandGroup(click.Group):
+    """Translate expected operational errors into concise CLI failures."""
+
+    def invoke(self, ctx):
+        import sqlite3
+
+        try:
+            return super().invoke(ctx)
+        except (OSError, ValueError, sqlite3.Error) as exc:
+            raise click.ClickException(str(exc)) from exc
 
 
-@click.group()
+class LazyAppContext:
+    """Initialize data access only when a command first needs it."""
+
+    def __init__(self, config_path):
+        self.config_path = config_path
+        self._app = None
+
+    def __getattr__(self, name):
+        if self._app is None:
+            self._app = AppContext(self.config_path)
+        return getattr(self._app, name)
+
+
+@click.group(
+    cls=CommandGroup,
+    context_settings={
+        "help_option_names": ["-h", "--help"],
+        "show_default": True,
+    },
+)
 @click.version_option(version=_VERSION, prog_name="wecli")
 @click.option(
     "--config",
     "config_path",
     default=None,
     envvar="WECLI_CONFIG",
-    help="config.json 路径（默认自动查找）",
+    type=click.Path(dir_okay=False),
+    help="Path to config.json (overrides WECLI_CONFIG and the default location).",
 )
 @click.pass_context
 def cli(ctx, config_path):
-    """wecli — 查询微信数据，通过桌面客户端发送文本
+    """Query local WeChat data and send text through the desktop client.
+
+    Results use readable text by default. Use --format json for scripts.
 
     \b
-    使用示例:
-      wecli launch                              # 启用辅助功能并启动微信
-      wecli doctor                              # 检查桌面环境
-      wecli init                                # 首次使用：提取密钥
-      wecli sessions                            # 最近会话列表
-      wecli sessions --limit 10                 # 最近 10 个会话
-      wecli history "张三" --limit 20          # 查看张三的最近 20 条消息
-      wecli history "AI交流群" --start-time "2026-04-01"  # 指定时间范围
-      wecli search "项目" --chat "AI交流群"   # 在指定群里搜索关键词
-      wecli search "你好" --limit 50           # 全局搜索
-      wecli contacts --query "李"              # 搜索联系人
-      wecli new-messages                       # 获取增量新消息
-      wecli send filehelper "你好" --yes       # 通过 AT-SPI 发送文本
+    Examples:
+      wecli launch
+      wecli doctor
+      wecli init
+      wecli sessions
+      wecli history Alice --limit 20
+      wecli sessions --format json
+      wecli send filehelper "Hello" --dry-run
+
+    Bash completion: eval "$(_WECLI_COMPLETE=bash_source wecli)"
     """
-    # These commands defer database initialization until it is needed.
-    if ctx.invoked_subcommand in ("send", "doctor", "launch", "moments"):
+    if ctx.invoked_subcommand in ("send", "doctor", "launch", "moments", "init"):
         ctx.obj = config_path
-        return
-
-    # init/version 命令不需要 AppContext
-    if ctx.invoked_subcommand in ("init", "version"):
-        return
-
-    try:
-        ctx.obj = AppContext(config_path)
-    except FileNotFoundError as e:
-        click.echo(str(e), err=True)
-        sys.exit(1)
-    except Exception as e:
-        click.echo(f"初始化失败: {e}", err=True)
-        sys.exit(1)
+    else:
+        ctx.obj = LazyAppContext(config_path)
 
 
 # 注册子命令
